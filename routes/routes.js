@@ -1,0 +1,60 @@
+import express from 'express';
+import sharp from 'sharp';
+import fs from 'fs';
+import path from 'path';
+import pool from '../db/db.js';
+import { upload, persistentPath } from '../multer/multer.js';
+
+const router = express.Router();
+
+// Ruta para subir imagen
+router.post('/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ stat: "error", message: "No se subió ningún archivo" });
+  }
+
+  try {
+    const outputFilename = 'img-' + req.file.filename;
+    const outputPath = path.join(persistentPath, outputFilename);
+
+    await sharp(req.file.path)
+      .resize({ width: 1200, height: 1200, fit: sharp.fit.inside, withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toFile(outputPath);
+
+    fs.unlinkSync(req.file.path);
+
+    const fileUrl = `${req.protocol}://${req.get('host')}/files/${outputFilename}`;
+
+    res.json({
+      stat: "ok",
+      message: "Imagen subida y redimensionada",
+      file: {
+        filename: outputFilename,
+        url: fileUrl
+      }
+    });
+  } catch (error) {
+    console.error('Error al procesar la imagen:', error);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ stat: "error", message: "Error al procesar la imagen" });
+  }
+});
+
+// Ruta para test de base de datos
+router.get('/db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    res.send({ ok: true, time: result.rows[0].now });
+  } catch (error) {
+    console.error('Error al conectar con la base de datos:', error);
+    res.status(500).send({ ok: false, error: 'Error al conectar con la base de datos' });
+  }
+});
+
+// Ruta básica
+router.get('/', (req, res) => {
+  res.send({ ok: true, res: 'Hello Arba Dev!' });
+});
+
+export default router;
