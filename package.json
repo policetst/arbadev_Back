@@ -1,5 +1,5 @@
 {
-  "name": "back",
+  "name": "Arbadev Backend",
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
@@ -7,9 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Unai Compaired",
   "license": "ISC",
-  "description": "",
+  "description": "Nodejs backend for a police station management system",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
