@@ -9,10 +9,10 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-// Servir las imágenes desde el disco persistente
+//! exponer las imagenes desde el disco persistente
 app.use('/files', express.static(persistentPath));
 
-// Usar las rutas
+//* Cagar las rutas del router desde /
 app.use('/', router);
 
 app.listen(port, () => {

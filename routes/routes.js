@@ -7,7 +7,7 @@ import { upload, persistentPath } from '../multer/multer.js';
 
 const router = express.Router();
 
-// Ruta para subir imagen
+// * ruta para subir imagen
 router.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ stat: "error", message: "No se subió ningún archivo" });
@@ -15,18 +15,18 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
   try {
     const outputFilename = 'img-' + req.file.filename;
-    const outputPath = path.join(persistentPath, outputFilename);
+    const outputPath = path.join(persistentPath, outputFilename); 
 
     await sharp(req.file.path)
-      .resize({ width: 1200, height: 1200, fit: sharp.fit.inside, withoutEnlargement: true })
+      .resize({ width: 1200, height: 1200, fit: sharp.fit.inside, withoutEnlargement: true }) //! Redimensionar la imagen
       .jpeg({ quality: 80 })
       .toFile(outputPath);
 
-    fs.unlinkSync(req.file.path);
+    fs.unlinkSync(req.file.path); 
 
-    const fileUrl = `${req.protocol}://${req.get('host')}/files/${outputFilename}`;
+    const fileUrl = `${req.protocol}://${req.get('host')}/files/${outputFilename}`; // * recogerr la url de la imagen 
 
-    res.json({
+    res.json({ //!devolver informacion de la imagen
       stat: "ok",
       message: "Imagen subida y redimensionada",
       file: {
@@ -41,7 +41,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// Ruta para test de base de datos
+// * Ruta para test de base de datos
 router.get('/db', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
@@ -52,7 +52,7 @@ router.get('/db', async (req, res) => {
   }
 });
 
-// Ruta básica
+// *ruta get básica
 router.get('/', (req, res) => {
   res.send({ ok: true, res: 'Hello Arba Dev!' });
 });
