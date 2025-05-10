@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import pool from '../db/db.js';
 import { upload, persistentPath } from '../multer/multer.js';
+import { log } from 'console';
 
 const router = express.Router();
 
@@ -55,6 +56,37 @@ router.get('/db', async (req, res) => {
 // *ruta get básica
 router.get('/', (req, res) => {
   res.send({ ok: true, res: 'Hello Arba Dev!' });
+});
+// * ruta para crear una incidencia
+router.post('/incidents', async (req, res) => {
+  const { status, location, type, description, brigade_field, creator_user_code } = req.body; // * desectructurar los datos del body de la peticion
+  console.log(req.body); //* log debug
+  
+///! validar los datos obligatorios
+  if (!status || !location || !type || !description || brigade_field === undefined || !creator_user_code) {
+    return res.status(400).json({ ok: false, message: 'Faltan datos obligatorios' });
+  }
+
+  try {
+    const query = `
+      INSERT INTO incidents (creation_date, status, location, type, description, brigade_field, creator_user_code)
+      VALUES (NOW(), $1, $2, $3, $4, $5, $6)
+      RETURNING *;
+    `;
+
+    const values = [status, location, type, description, brigade_field, creator_user_code];
+//** ejecutar la consulta
+    const result = await pool.query(query, values);
+
+    res.status(201).json({
+      ok: true,
+      message: `Incidencia creada exitosamente`,
+      incident: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Error al insertar el incidente:', error);
+    res.status(500).json({ ok: false, message: 'Error al insertar el incidente' });
+  }
 });
 
 export default router;
