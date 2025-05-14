@@ -9,6 +9,8 @@ import { log } from 'console';
 const router = express.Router();
 
 // * ruta para subir imagen
+
+
 router.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ stat: "error", message: "No se subió ningún archivo" });
@@ -43,6 +45,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 // * Ruta para test de base de datos
+
+
 router.get('/db', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
@@ -54,10 +58,14 @@ router.get('/db', async (req, res) => {
 });
 
 // *ruta get básica
+
+
 router.get('/', (req, res) => {
   res.send({ ok: true, res: 'Hello Arba Dev!' });
 });
 // * ruta para crear una incidencia
+
+
 router.post('/incidents', async (req, res) => {
   const { status, location, type, description, brigade_field, creator_user_code } = req.body; // * desectructurar los datos del body de la peticion
   console.log(req.body); //* log debug
