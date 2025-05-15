@@ -67,7 +67,7 @@ router.get('/', (req, res) => {
 
 
 router.post('/incidents', async (req, res) => {
-  const { status, location, type, description, brigade_field, creator_user_code } = req.body; // * desectructurar los datos del body de la peticion
+  const { status, location, type, description, people, vehicles, images, brigade_field, creator_user_code } = req.body; // * desectructurar los datos del body de la peticion
   console.log(req.body); //* log debug
   
 ///! validar los datos obligatorios
