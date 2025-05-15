@@ -9,10 +9,10 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-//! exponer las imagenes desde el disco persistente
+//! exposer static files from the uploads folder
 app.use('/files', express.static(persistentPath));
 
-//* Cagar las rutas del router desde /
+//* load routes at /
 app.use('/', router);
 
 app.listen(port, () => {

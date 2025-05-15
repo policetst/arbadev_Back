@@ -5,6 +5,7 @@ import path from 'path';
 import pool from '../db/db.js';
 import { upload, persistentPath } from '../multer/multer.js';
 import { log } from 'console';
+import { add_people, add_vehicle } from '../functions.js';
 
 const router = express.Router();
 
@@ -85,6 +86,32 @@ router.post('/incidents', async (req, res) => {
     const values = [status, location, type, description, brigade_field, creator_user_code];
 //** ejecutar la consulta
     const result = await pool.query(query, values);
+    const incidentId = result.rows[0].code; // * obtener el id de la incidencia creada
+    // console.log('ID de la incidencia creada:', incidentId);
+    //! add people and relation to the incident
+    people.forEach(async (person) => {
+      await add_people([person]);
+      let dni = person.dni;
+      const query = `
+        INSERT INTO incidents_people (incident_code, person_dni)
+        VALUES ($1, $2);
+      `;
+      const values = [incidentId, dni];
+      await pool.query(query, values);
+    });
+    //! add vehicles and relation to the incident
+    vehicles.forEach(async (vehicle) => {
+       await add_vehicle([vehicle]);
+       let license_plate = vehicle.matricula;
+      const query = `
+        INSERT INTO incidents_vehicles (incident_code, vehicle_license_plate)
+        VALUES ($1, $2);
+      `;
+      const values = [incidentId, license_plate];
+      await pool.query(query, values);
+    });
+    console.log('Personas añadidas:', people);
+    console.log('Vehículos añadidos:', vehicles);
 
     res.status(201).json({
       ok: true,
