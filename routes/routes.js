@@ -114,6 +114,16 @@ router.post('/incidents', async (req, res) => {
         );
       }
     }
+    // Añadir imágenes relacionadas
+    if(Array.isArray(images)){
+      for (const image of images) {
+        const imagePath = image
+        await pool.query(
+          `INSERT INTO incident_images (incident_code, url) VALUES ($1, $2);`,
+          [incidentId, imagePath]
+        );
+      }
+    }
 
     await pool.query('COMMIT');
 
@@ -126,6 +136,7 @@ router.post('/incidents', async (req, res) => {
       incident: result.rows[0],
     });
   } catch (error) {
+    res.status(500).json({ ok: false, message: 'Error al crear la incidencia' });
     await pool.query('ROLLBACK');
     console.error('Error al insertar el incidente:', error);
     res.status(500).json({ ok: false, message: 'Error al insertar el incidente' });
