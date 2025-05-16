@@ -4,14 +4,11 @@ import fs from 'fs';
 import path from 'path';
 import pool from '../db/db.js';
 import { upload, persistentPath } from '../multer/multer.js';
-import { log } from 'console';
 import { add_people, add_vehicle } from '../functions.js';
 
 const router = express.Router();
 
-// * ruta para subir imagen
-
-
+// * Ruta para subir imagen
 router.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ stat: "error", message: "No se subió ningún archivo" });
@@ -19,18 +16,18 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
   try {
     const outputFilename = 'img-' + req.file.filename;
-    const outputPath = path.join(persistentPath, outputFilename); 
+    const outputPath = path.join(persistentPath, outputFilename);
 
     await sharp(req.file.path)
-      .resize({ width: 1200, height: 1200, fit: sharp.fit.inside, withoutEnlargement: true }) //! Redimensionar la imagen
+      .resize({ width: 1200, height: 1200, fit: sharp.fit.inside, withoutEnlargement: true })
       .jpeg({ quality: 80 })
       .toFile(outputPath);
 
-    fs.unlinkSync(req.file.path); 
+    fs.unlinkSync(req.file.path);
 
-    const fileUrl = `${req.protocol}://${req.get('host')}/files/${outputFilename}`; // * recogerr la url de la imagen 
+    const fileUrl = `${req.protocol}://${req.get('host')}/files/${outputFilename}`;
 
-    res.json({ //!devolver informacion de la imagen
+    res.json({
       stat: "ok",
       message: "Imagen subida y redimensionada",
       file: {
@@ -46,8 +43,6 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 // * Ruta para test de base de datos
-
-
 router.get('/db', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
@@ -58,58 +53,70 @@ router.get('/db', async (req, res) => {
   }
 });
 
-// *ruta get básica
-
-
+// * Ruta GET básica
 router.get('/', (req, res) => {
   res.send({ ok: true, res: 'Hello Arba Dev!' });
 });
-// * ruta para crear una incidencia
 
-
+// * Ruta para crear una incidencia
 router.post('/incidents', async (req, res) => {
-  const { status, location, type, description, people, vehicles, images, brigade_field, creator_user_code } = req.body; // * desectructurar los datos del body de la peticion
-  console.log(req.body); //* log debug
-  
-///! validar los datos obligatorios
+  const {
+    status,
+    location,
+    type,
+    description,
+    people = [],
+    vehicles = [],
+    images,
+    brigade_field,
+    creator_user_code
+  } = req.body;
+
+  console.log(req.body);
+
+  // Validar datos obligatorios
   if (!status || !location || !type || !description || brigade_field === undefined || !creator_user_code) {
     return res.status(400).json({ ok: false, message: 'Faltan datos obligatorios' });
   }
 
   try {
+    await pool.query('BEGIN');
+
     const query = `
       INSERT INTO incidents (creation_date, status, location, type, description, brigade_field, creator_user_code)
       VALUES (NOW(), $1, $2, $3, $4, $5, $6)
       RETURNING *;
     `;
-
     const values = [status, location, type, description, brigade_field, creator_user_code];
-//** ejecutar la consulta
     const result = await pool.query(query, values);
-    const incidentId = result.rows[0].code; // * obtener el id de la incidencia creada
-    // console.log('ID de la incidencia creada:', incidentId);
-    //! add people and relation to the incident
-    people.forEach(async (person) => {
-      await add_people([person]);
-      let dni = person.dni;
-      const query = `
-        INSERT INTO incidents_people (incident_code, person_dni)
-        VALUES ($1, $2);
-      `;
-      const values = [incidentId, dni];
-      await pool.query(query, values);
-    });
-    //! add vehicles and relation to the incident
-    vehicles.forEach(async (vehicle) => {
-       await add_vehicle([vehicle]);
-       let license_plate = vehicle.matricula;
-      const query = `
-        INSERT INTO incidents_vehicles (incident_code, vehicle_license_plate)
-        VALUES ($1, $2);
-      `;
-      const values = [incidentId, license_plate];
-      await pool.query(query, values);
-    });
+    const incidentId = result.rows[0].code;
+
+    // Añadir personas relacionadas
+    if (Array.isArray(people)) {
+      for (const person of people) {
+        await add_people(person);
+        const dni = person.dni;
+        await pool.query(
+          `INSERT INTO incidents_people (incident_code, person_dni) VALUES ($1, $2);`,
+          [incidentId, dni]
+        );
+      }
+    }
+
+    // Añadir vehículos relacionados
+    if (Array.isArray(vehicles)) {
+      for (const vehicle of vehicles) {
+        await add_vehicle(vehicle);
+        const license_plate = vehicle.matricula;
+        await pool.query(
+          `INSERT INTO incidents_vehicles (incident_code, vehicle_license_plate) VALUES ($1, $2);`,
+          [incidentId, license_plate]
+        );
+      }
+    }
+
+    await pool.query('COMMIT');
+
     console.log('Personas añadidas:', people);
     console.log('Vehículos añadidos:', vehicles);
 
@@ -119,6 +126,7 @@ router.post('/incidents', async (req, res) => {
       incident: result.rows[0],
     });
   } catch (error) {
+    await pool.query('ROLLBACK');
     console.error('Error al insertar el incidente:', error);
     res.status(500).json({ ok: false, message: 'Error al insertar el incidente' });
   }
