@@ -57,6 +57,16 @@ router.get('/db', async (req, res) => {
 router.get('/', (req, res) => {
   res.send({ ok: true, res: 'Hello Arba Dev!' });
 });
+// * Ruta para obtener todas las incidencias
+router.get('/incidents', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM incidents');
+    res.json({ ok: true, incidents: result.rows });
+  } catch (error) {
+    console.error('Error al obtener las incidencias:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener las incidencias' });
+  }
+});
 
 // * Ruta para crear una incidencia
 router.post('/incidents', async (req, res) => {
