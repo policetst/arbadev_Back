@@ -211,16 +211,18 @@ router.put('/incidents/:code/', async (req, res) => {
     }
 
     // Handle images if needed
-    if (Array.isArray(images) && images.length > 0) {
-      // Optionally: delete existing images
-      // await pool.query('DELETE FROM incident_images WHERE incident_code = $1', [code]);
+    if (Array.isArray(images)) {
+      // First delete existing images to ensure we have a clean slate
+      await pool.query('DELETE FROM incident_images WHERE incident_code = $1', [code]);
       
-      for (const image of images) {
-        await pool.query(
-          `INSERT INTO incident_images (incident_code, url) VALUES ($1, $2) 
-           ON CONFLICT (incident_code, url) DO NOTHING;`, // Prevent duplicates
-          [code, image]
-        );
+      // Then insert the new ones (if any)
+      if (images.length > 0) {
+        for (const image of images) {
+          await pool.query(
+            `INSERT INTO incident_images (incident_code, url) VALUES ($1, $2)`,
+            [code, image]
+          );
+        }
       }
     }
 
@@ -230,6 +232,56 @@ router.put('/incidents/:code/', async (req, res) => {
     await pool.query('ROLLBACK');
     console.error('Error al actualizar la incidencia:', error);
     res.status(500).json({ ok: false, message: 'Error al actualizar la incidencia' });
+  }
+});
+
+// * Route to get an incident with details (people, vehicles)
+router.get('/incidents/:code/details', async (req, res) => {
+  const { code } = req.params;
+
+  try {
+    // Get incident basic info
+    const incidentResult = await pool.query('SELECT * FROM incidents WHERE code = $1', [code]);
+    
+    if (incidentResult.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Incidencia no encontrada' });
+    }
+    
+    const incident = incidentResult.rows[0];
+    
+    // Get people related to this incident
+    const peopleResult = await pool.query(`
+      SELECT p.* 
+      FROM people p
+      JOIN incidents_people ip ON p.dni = ip.person_dni
+      WHERE ip.incident_code = $1
+    `, [code]);
+    
+    // Get vehicles related to this incident
+    const vehiclesResult = await pool.query(`
+      SELECT v.* 
+      FROM vehicles v
+      JOIN incidents_vehicles iv ON v.license_plate = iv.vehicle_license_plate
+      WHERE iv.incident_code = $1
+    `, [code]);
+    
+    // Get images related to this incident
+    const imagesResult = await pool.query(`
+      SELECT * FROM incident_images
+      WHERE incident_code = $1
+    `, [code]);
+    
+    res.json({
+      ok: true,
+      incident: incident,
+      people: peopleResult.rows,
+      vehicles: vehiclesResult.rows,
+      images: imagesResult.rows
+    });
+    
+  } catch (error) {
+    console.error('Error al obtener detalles de la incidencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener detalles de la incidencia' });
   }
 });
 
