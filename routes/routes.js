@@ -8,7 +8,7 @@ import { add_people, add_vehicle } from '../functions.js';
 
 const router = express.Router();
 
-// * Ruta para subir imagen
+// * Route to upload image
 router.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ stat: "error", message: "No se subió ningún archivo" });
@@ -42,7 +42,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// * Ruta para test de base de datos
+// * Route to test database
 router.get('/db', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
@@ -53,11 +53,11 @@ router.get('/db', async (req, res) => {
   }
 });
 
-// * Ruta GET básica
+// * Basic GET route
 router.get('/', (req, res) => {
   res.send({ ok: true, res: 'Hello Arba Dev!' });
 });
-// * Ruta para obtener todas las incidencias
+// * Route to get all incidents
 router.get('/incidents', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM incidents');
@@ -68,7 +68,7 @@ router.get('/incidents', async (req, res) => {
   }
 });
 
-// * Ruta para crear una incidencia
+// * Route to create an incident
 router.post('/incidents', async (req, res) => {
   const {
     status,
@@ -84,7 +84,7 @@ router.post('/incidents', async (req, res) => {
 
   console.log(req.body);
 
-  // Validar datos obligatorios
+  // * Validate required data
   if (!status || !location || !type || !description || brigade_field === undefined || !creator_user_code) {
     return res.status(400).json({ ok: false, message: 'Faltan datos obligatorios' });
   }
@@ -101,7 +101,7 @@ router.post('/incidents', async (req, res) => {
     const result = await pool.query(query, values);
     const incidentId = result.rows[0].code;
 
-    // Añadir personas relacionadas
+    // * Add related people
     if (Array.isArray(people)) {
       for (const person of people) {
         await add_people(person);
@@ -113,7 +113,7 @@ router.post('/incidents', async (req, res) => {
       }
     }
 
-    // Añadir vehículos relacionados
+    // * Add related vehicles
     if (Array.isArray(vehicles)) {
       for (const vehicle of vehicles) {
         await add_vehicle(vehicle);
@@ -124,7 +124,7 @@ router.post('/incidents', async (req, res) => {
         );
       }
     }
-    // Añadir imágenes relacionadas
+    // * Add related images
     if(Array.isArray(images)){
       for (const image of images) {
         const imagePath = image
@@ -137,12 +137,12 @@ router.post('/incidents', async (req, res) => {
 
     await pool.query('COMMIT');
 
-    console.log('Personas añadidas:', people);
-    console.log('Vehículos añadidos:', vehicles);
+    console.log('People added:', people);
+    console.log('Vehicles added:', vehicles);
 
     res.status(201).json({
       ok: true,
-      message: `Incidencia creada exitosamente`,
+      message: `Incident created successfully`,
       incident: result.rows[0],
     });
   } catch (error) {
@@ -150,6 +150,86 @@ router.post('/incidents', async (req, res) => {
     await pool.query('ROLLBACK');
     console.error('Error al insertar el incidente:', error);
     res.status(500).json({ ok: false, message: 'Error al insertar el incidente' });
+  }
+});
+
+// * Route to update an incident
+router.put('/incidents/:code/', async (req, res) => {
+  const { code } = req.params;
+  const { status, location, type, description, people = [], vehicles = [], images, closure_user_code } = req.body;
+
+  try {
+    await pool.query('BEGIN');
+
+    // Update incident basic info
+    let query, values;
+    
+    if (status === 'Closed' && closure_user_code) {
+      query = `
+        UPDATE incidents SET status = $1, location = $2, type = $3, description = $4, closure_user_code = $5
+        WHERE code = $6;
+      `;
+      values = [status, location, type, description, closure_user_code, code];
+    } else {
+      query = `
+        UPDATE incidents SET status = $1, location = $2, type = $3, description = $4
+        WHERE code = $5;
+      `;
+      values = [status, location, type, description, code];
+    }
+    
+    await pool.query(query, values);
+
+    // Update people: First remove existing relationships
+    await pool.query('DELETE FROM incidents_people WHERE incident_code = $1', [code]);
+    
+    // Add updated people relationships
+    if (Array.isArray(people) && people.length > 0) {
+      for (const person of people) {
+        await add_people(person); // Ensure person exists in people table
+        const dni = person.dni;
+        await pool.query(
+          `INSERT INTO incidents_people (incident_code, person_dni) VALUES ($1, $2);`,
+          [code, dni]
+        );
+      }
+    }
+
+    // Update vehicles: First remove existing relationships
+    await pool.query('DELETE FROM incidents_vehicles WHERE incident_code = $1', [code]);
+    
+    // Add updated vehicle relationships
+    if (Array.isArray(vehicles) && vehicles.length > 0) {
+      for (const vehicle of vehicles) {
+        await add_vehicle(vehicle); // Ensure vehicle exists in vehicles table
+        const license_plate = vehicle.matricula;
+        await pool.query(
+          `INSERT INTO incidents_vehicles (incident_code, vehicle_license_plate) VALUES ($1, $2);`,
+          [code, license_plate]
+        );
+      }
+    }
+
+    // Handle images if needed
+    if (Array.isArray(images) && images.length > 0) {
+      // Optionally: delete existing images
+      // await pool.query('DELETE FROM incident_images WHERE incident_code = $1', [code]);
+      
+      for (const image of images) {
+        await pool.query(
+          `INSERT INTO incident_images (incident_code, url) VALUES ($1, $2) 
+           ON CONFLICT (incident_code, url) DO NOTHING;`, // Prevent duplicates
+          [code, image]
+        );
+      }
+    }
+
+    await pool.query('COMMIT');
+    res.json({ ok: true, message: 'Incident updated successfully' });
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error('Error al actualizar la incidencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar la incidencia' });
   }
 });
 
