@@ -284,5 +284,17 @@ router.get('/incidents/:code/details', async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al obtener detalles de la incidencia' });
   }
 });
+//* route to get the count of people in a incident
+router.get('/incidents/:code/peoplecount', async (req, res) => {
+  const { code } = req.params;
+  const result = await pool.query(`select count(*) from incidents_people where incident_code='${code}'`);
+  res.json({ ok: true, count: result.rows[0].count });
+});
+//* route to get the count of vehicles in a incident
+router.get('/incidents/:code/vehiclescount', async (req, res) => {
+  const { code } = req.params;
+  const result = await pool.query(`select count(*) from incidents_vehicles where incident_code='${code}'`);
+  res.json({ ok: true, count: result.rows[0].count });
+});
 
 export default router;
