@@ -1,0 +1,18 @@
+POST http://localhost:4000/incidents
+authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFkbWluIiwiaWF0IjoxNzQ3NzMyOTM4fQ.XZMPIvGjuFLsVYaclzr-cQQYXKIrFh93ZnA8dIyvP7s
+###
+
+GET http://localhost:4000/incidents/INC000011/details
+authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFkbWluIiwiaWF0IjoxNzQ3NzMyOTM4fQ.XZMPIvGjuFLsVYaclzr-cQQYXKIrFh93ZnA8dIyvP7s
+###
+
+
+POST http://localhost:4000/login
+
+Content-Type: application/json
+
+{
+    "username": "AR01492",
+    "password": "Arba2024"
+}
+

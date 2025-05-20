@@ -1,15 +1,81 @@
 import express from 'express';
 import sharp from 'sharp';
 import fs from 'fs';
+import jwt from 'jsonwebtoken';
 import path from 'path';
 import pool from '../db/db.js';
+import bcrypt from 'bcrypt';
 import { upload, persistentPath } from '../multer/multer.js';
 import { add_people, add_vehicle } from '../functions.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const router = express.Router();
 
+// * Middleware to authenticate the token
+export const authToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token == null) return res.sendStatus(401);
+  jwt.verify(token, process.env.SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+
+router.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  console.log(username, password);
+  
+  try {
+    //* search the user in the database by code
+    const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [username]);
+    
+    //* if the user is not found
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ ok: false, message: 'Credenciales inválidas' });
+    }
+    
+    const user = userResult.rows[0];
+
+    //* check if the user is active
+    if (user.status !== 'Active') {
+      return res.status(401).json({ ok: false, message: 'Usuario inactivo' });
+    }
+    
+    //* check if the password is correct
+    const validPassword = await bcrypt.compare(password, user.password);
+    
+    if (!validPassword) {
+      return res.status(401).json({ ok: false, message: 'Credenciales inválidas' });
+    }
+    
+    //* create the JWT token
+    const token = jwt.sign({ 
+      code: user.code,
+      role: user.role 
+    }, process.env.SECRET, { expiresIn: '8h' });
+    
+    res.json({ 
+      ok: true, 
+      token,
+      user: {
+        code: user.code,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Error en login:', error);
+    res.status(500).json({ ok: false, message: 'Error en el servidor' });
+  }
+});
+
 // * Route to upload image
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', authToken, upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ stat: "error", message: "No se subió ningún archivo" });
   }
@@ -43,7 +109,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 // * Route to test database
-router.get('/db', async (req, res) => {
+router.get('/db', authToken, async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
     res.send({ ok: true, time: result.rows[0].now });
@@ -58,7 +124,8 @@ router.get('/', (req, res) => {
   res.send({ ok: true, res: 'Hello Arba Dev!' });
 });
 // * Route to get all incidents
-router.get('/incidents', async (req, res) => {
+router.get('/incidents', authToken, async (req, res) => {
+
   try {
     const result = await pool.query('SELECT * FROM incidents');
     res.json({ ok: true, incidents: result.rows });
@@ -69,7 +136,7 @@ router.get('/incidents', async (req, res) => {
 });
 
 // * Route to create an incident
-router.post('/incidents', async (req, res) => {
+router.post('/incidents', authToken, async (req, res) => {
   const {
     status,
     location,
@@ -154,7 +221,7 @@ router.post('/incidents', async (req, res) => {
 });
 
 // * Route to update an incident
-router.put('/incidents/:code/', async (req, res) => {
+router.put('/incidents/:code/', authToken, async (req, res) => {
   const { code } = req.params;
   const { status, location, type, description, people = [], vehicles = [], images, closure_user_code } = req.body;
 
@@ -236,7 +303,7 @@ router.put('/incidents/:code/', async (req, res) => {
 });
 
 // * Route to get an incident with details (people, vehicles)
-router.get('/incidents/:code/details', async (req, res) => {
+router.get('/incidents/:code/details', authToken, async (req, res) => {
   const { code } = req.params;
 
   try {
@@ -285,13 +352,13 @@ router.get('/incidents/:code/details', async (req, res) => {
   }
 });
 //* route to get the count of people in a incident
-router.get('/incidents/:code/peoplecount', async (req, res) => {
+router.get('/incidents/:code/peoplecount', authToken, async (req, res) => {
   const { code } = req.params;
   const result = await pool.query(`select count(*) from incidents_people where incident_code='${code}'`);
   res.json({ ok: true, count: result.rows[0].count });
 });
 //* route to get the count of vehicles in a incident
-router.get('/incidents/:code/vehiclescount', async (req, res) => {
+router.get('/incidents/:code/vehiclescount', authToken, async (req, res) => {
   const { code } = req.params;
   const result = await pool.query(`select count(*) from incidents_vehicles where incident_code='${code}'`);
   res.json({ ok: true, count: result.rows[0].count });
