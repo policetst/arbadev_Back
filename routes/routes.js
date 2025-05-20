@@ -364,4 +364,12 @@ router.get('/incidents/:code/vehiclescount', authToken, async (req, res) => {
   res.json({ ok: true, count: result.rows[0].count });
 });
 
+//* route to close an incident
+router.put('/incidents/:code/:usercode/close', authToken, async (req, res) => {
+  const { code, usercode } = req.params;
+  const result = await pool.query(`update incidents set status='Closed', closure_user_code='${usercode}' where code='${code}'`);
+  res.json({ ok: true, message: 'Incidencia cerrada correctamente' });
+  
+});
+
 export default router;
