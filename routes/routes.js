@@ -17,13 +17,21 @@ const router = express.Router();
 export const authToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (token == null) return res.sendStatus(401);
+  if (token == null) {
+    console.warn('⚠️ Token ausente');
+    return res.sendStatus(401);
+  }
+
   jwt.verify(token, process.env.SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
+    if (err) {
+      console.error('❌ Token inválido o expirado:', err.message);
+      return res.sendStatus(403);
+    }
     req.user = user;
     next();
   });
 };
+
 
 
 router.post('/login', async (req, res) => {
@@ -184,7 +192,8 @@ router.post('/incidents', authToken, async (req, res) => {
     if (Array.isArray(vehicles)) {
       for (const vehicle of vehicles) {
         await add_vehicle(vehicle);
-        const license_plate = vehicle.matricula;
+        // Usar brand, model, color, license_plate
+        const license_plate = vehicle.license_plate;
         await pool.query(
           `INSERT INTO incidents_vehicles (incident_code, vehicle_license_plate) VALUES ($1, $2);`,
           [incidentId, license_plate]
@@ -268,8 +277,12 @@ router.put('/incidents/:code/', authToken, async (req, res) => {
     // Add updated vehicle relationships
     if (Array.isArray(vehicles) && vehicles.length > 0) {
       for (const vehicle of vehicles) {
+        // Asegurarse de que los campos existen y no son undefined
+        const { brand, model, color, license_plate } = vehicle;
+        if (!brand || !model || !color || !license_plate) {
+          throw new Error('Datos de vehículo incompletos');
+        }
         await add_vehicle(vehicle); // Ensure vehicle exists in vehicles table
-        const license_plate = vehicle.matricula;
         await pool.query(
           `INSERT INTO incidents_vehicles (incident_code, vehicle_license_plate) VALUES ($1, $2);`,
           [code, license_plate]

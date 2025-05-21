@@ -42,13 +42,13 @@ export const add_vehicle = async (vehicle) => {
       RETURNING license_plate;
     `;
     const values = [
-      vehicle.marca,
-      vehicle.modelo,
+      vehicle.brand,
+      vehicle.model,
       vehicle.color,
-      vehicle.matricula
+      vehicle.license_plate
     ];
     const result = await pool.query(query, values);
-    return result.rows[0] || { license_plate: vehicle.matricula }; // Si ya existía, devuelve matrícula
+    return result.rows[0] || { license_plate: vehicle.license_plate }; // Si ya existía, devuelve matrícula
   } catch (error) {
     console.error('Error al añadir vehículo:', error);
     throw error;
