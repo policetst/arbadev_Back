@@ -8,6 +8,7 @@ import bcrypt from 'bcrypt';
 import { upload, persistentPath } from '../multer/multer.js';
 import { add_people, add_vehicle } from '../functions.js';
 import dotenv from 'dotenv';
+import { log } from 'console';
 
 dotenv.config();
 
@@ -156,11 +157,11 @@ router.post('/incidents', authToken, async (req, res) => {
     brigade_field,
     creator_user_code
   } = req.body;
-
+const brigadeFieldBool = brigade_field === true || brigade_field === 'true'; // Convert to boolean
   console.log(req.body);
 
   // * Validate required data
-  if (!status || !location || !type || !description || brigade_field === undefined || !creator_user_code) {
+  if (!status || !location || !type || !description || brigadeFieldBool === undefined || !creator_user_code) {
     return res.status(400).json({ ok: false, message: 'Faltan datos obligatorios' });
   }
 
@@ -172,7 +173,7 @@ router.post('/incidents', authToken, async (req, res) => {
       VALUES (NOW(), $1, $2, $3, $4, $5, $6)
       RETURNING *;
     `;
-    const values = [status, location, type, description, brigade_field, creator_user_code];
+    const values = [status, location, type, description, brigadeFieldBool, creator_user_code];
     const result = await pool.query(query, values);
     const incidentId = result.rows[0].code;
 
@@ -231,58 +232,67 @@ router.post('/incidents', authToken, async (req, res) => {
 
 // * Route to update an incident
 router.put('/incidents/:code/', authToken, async (req, res) => {
+  log('Updating incident:', req.body);
   const { code } = req.params;
-  const { status, location, type, description, people = [], vehicles = [], images, closure_user_code } = req.body;
+  const {
+    status,
+    location,
+    type,
+    description,
+    brigade_field,
+    people = [],
+    vehicles = [],
+    images,
+    closure_user_code
+  } = req.body;
 
   try {
     await pool.query('BEGIN');
 
-    // Update incident basic info
+    // Actualizar información básica de la incidencia, incluyendo brigade_field
     let query, values;
-    
+
     if (status === 'Closed' && closure_user_code) {
       query = `
-        UPDATE incidents SET status = $1, location = $2, type = $3, description = $4, closure_user_code = $5
-        WHERE code = $6;
+        UPDATE incidents 
+        SET status = $1, location = $2, type = $3, description = $4, brigade_field = $5, closure_user_code = $6
+        WHERE code = $7;
       `;
-      values = [status, location, type, description, closure_user_code, code];
+      values = [status, location, type, description, brigade_field, closure_user_code, code];
     } else {
       query = `
-        UPDATE incidents SET status = $1, location = $2, type = $3, description = $4
-        WHERE code = $5;
+        UPDATE incidents 
+        SET status = $1, location = $2, type = $3, description = $4, brigade_field = $5
+        WHERE code = $6;
       `;
-      values = [status, location, type, description, code];
+      values = [status, location, type, description, brigade_field, code];
     }
-    
+
     await pool.query(query, values);
 
-    // Update people: First remove existing relationships
+    // Actualizar personas relacionadas
     await pool.query('DELETE FROM incidents_people WHERE incident_code = $1', [code]);
-    
-    // Add updated people relationships
+
     if (Array.isArray(people) && people.length > 0) {
       for (const person of people) {
-        await add_people(person); // Ensure person exists in people table
-        const dni = person.dni;
+        await add_people(person);
         await pool.query(
           `INSERT INTO incidents_people (incident_code, person_dni) VALUES ($1, $2);`,
-          [code, dni]
+          [code, person.dni]
         );
       }
     }
 
-    // Update vehicles: First remove existing relationships
+    // Actualizar vehículos relacionados
     await pool.query('DELETE FROM incidents_vehicles WHERE incident_code = $1', [code]);
-    
-    // Add updated vehicle relationships
+
     if (Array.isArray(vehicles) && vehicles.length > 0) {
       for (const vehicle of vehicles) {
-        // Asegurarse de que los campos existen y no son undefined
         const { brand, model, color, license_plate } = vehicle;
         if (!brand || !model || !color || !license_plate) {
           throw new Error('Datos de vehículo incompletos');
         }
-        await add_vehicle(vehicle); // Ensure vehicle exists in vehicles table
+        await add_vehicle(vehicle);
         await pool.query(
           `INSERT INTO incidents_vehicles (incident_code, vehicle_license_plate) VALUES ($1, $2);`,
           [code, license_plate]
@@ -290,30 +300,28 @@ router.put('/incidents/:code/', authToken, async (req, res) => {
       }
     }
 
-    // Handle images if needed
+    // Actualizar imágenes
     if (Array.isArray(images)) {
-      // First delete existing images to ensure we have a clean slate
       await pool.query('DELETE FROM incident_images WHERE incident_code = $1', [code]);
-      
-      // Then insert the new ones (if any)
-      if (images.length > 0) {
-        for (const image of images) {
-          await pool.query(
-            `INSERT INTO incident_images (incident_code, url) VALUES ($1, $2)`,
-            [code, image]
-          );
-        }
+
+      for (const image of images) {
+        await pool.query(
+          `INSERT INTO incident_images (incident_code, url) VALUES ($1, $2);`,
+          [code, image]
+        );
       }
     }
 
     await pool.query('COMMIT');
-    res.json({ ok: true, message: 'Incident updated successfully' });
+    res.json({ ok: true, message: 'Incidencia actualizada correctamente' });
+
   } catch (error) {
     await pool.query('ROLLBACK');
     console.error('Error al actualizar la incidencia:', error);
     res.status(500).json({ ok: false, message: 'Error al actualizar la incidencia' });
   }
 });
+
 
 // * Route to get an incident with details (people, vehicles)
 router.get('/incidents/:code/details', authToken, async (req, res) => {
@@ -379,6 +387,7 @@ router.get('/incidents/:code/vehiclescount', authToken, async (req, res) => {
 
 //* route to close an incident
 router.put('/incidents/:code/:usercode/close', authToken, async (req, res) => {
+
   const { code, usercode } = req.params;
   const result = await pool.query(`update incidents set status='Closed', closure_user_code='${usercode}' where code='${code}'`);
   res.json({ ok: true, message: 'Incidencia cerrada correctamente' });
