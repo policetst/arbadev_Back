@@ -33,6 +33,37 @@ export const authToken = (req, res, next) => {
   });
 };
 
+//* delete images from server
+router.post('/imagesd', async (req, res) => {
+  
+  try {
+    const { url } = req.body;
+    console.log('URL recibida:', url);
+console.log('Archivo extraído:', path.basename(url));
+console.log('Ruta final:', path.posix.join('/mnt/data/uploads', path.basename(url)));
+console.log('Existe el archivo:', fs.existsSync(path.posix.join('/mnt/data/uploads', path.basename(url))));
+
+
+    if (!url) {
+      return res.status(400).json({ ok: false, message: 'URL de imagen no proporcionada' });
+    }
+
+    const fileName = path.basename(url);
+    log('File name to delete:', fileName);
+    const imagePath = path.posix.join('/mnt/data/uploads', fileName);
+
+    console.log('Auth OK. Intentando borrar:', imagePath);
+
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+
+  } catch (error) {
+    console.error('Error al borrar imagen:', error);
+    res.status(500).json({ ok: false, message: 'Error interno del servidor' });
+  }
+});
+
 
 
 router.post('/login', async (req, res) => {
