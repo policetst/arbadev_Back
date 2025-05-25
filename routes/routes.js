@@ -55,8 +55,13 @@ console.log('Existe el archivo:', fs.existsSync(path.posix.join('/mnt/data/uploa
     console.log('Auth OK. Intentando borrar:', imagePath);
 
     if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
-    }
+      try {
+        fs.unlinkSync(imagePath);
+      } catch (error) {
+        console.error('Error al borrar imagen:', error);
+        return res.status(500).json({ ok: false, message: 'Error interno del servidor' });
+      }
+      console.log('Imagen borrada correctamente:', imagePath);}
 
   } catch (error) {
     console.error('Error al borrar imagen:', error);
