@@ -429,5 +429,18 @@ router.put('/incidents/:code/:usercode/close', authToken, async (req, res) => {
   res.json({ ok: true, message: 'Incidencia cerrada correctamente' });
   
 });
+// * Route to get users 
+router.get('/users', authToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM users');
+if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'No se encontraron usuarios' });
+    }
+    res.json({ ok: true, users: result.rows });
+  } catch (error) {
+    console.error('Error al obtener los usuarios:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener los usuarios' });
+  }
+});
 
 export default router;
