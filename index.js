@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { persistentPath } from './multer/multer.js';
+import Peoplerouter from './routes/personRouter.js';
 import router from './routes/routes.js';
 
 // Cargar variables de entorno
@@ -18,6 +19,8 @@ app.use('/files', express.static(persistentPath));
 
 //* load routes at /
 app.use('/', router);
+app.use('/people', Peoplerouter)
+
 
 app.listen(port, () => {
   console.log(` server running on port ${port}`);

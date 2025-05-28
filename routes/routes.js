@@ -17,6 +17,7 @@ const router = express.Router();
 // * Middleware to authenticate the token
 export const authToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
+  console.log("HEADER RECIBIDO:", authHeader); //* critic log
   const token = authHeader && authHeader.split(' ')[1];
   if (token == null) {
     console.warn('⚠️ Token ausente');
@@ -25,13 +26,14 @@ export const authToken = (req, res, next) => {
 
   jwt.verify(token, process.env.SECRET, (err, user) => {
     if (err) {
-      console.error('❌ Token inválido o expirado:', err.message);
+      console.error('❌ Token inválido o expirado:', err.message); //* critic log
       return res.sendStatus(403);
     }
     req.user = user;
     next();
   });
 };
+
 
 //* delete images from server
 router.post('/imagesd', async (req, res) => {
@@ -102,7 +104,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign({ 
       code: user.code,
       role: user.role 
-    }, process.env.SECRET, { expiresIn: '8h' });
+    }, process.env.SECRET, { expiresIn: '1h' });
     
     res.json({ 
       ok: true, 
@@ -430,17 +432,37 @@ router.put('/incidents/:code/:usercode/close', authToken, async (req, res) => {
   
 });
 // * Route to get users 
-router.get('/users', authToken, async (req, res) => {
+router.get('/users',authToken, async (req, res) => {
+  console.log('users');
+  
   try {
     const result = await pool.query('SELECT * FROM users');
 if (result.rows.length === 0) {
       return res.status(404).json({ ok: false, message: 'No se encontraron usuarios' });
     }
-    res.json({ ok: true, users: result.rows });
+    res.json({ ok: true, data: result.rows });
   } catch (error) {
     console.error('Error al obtener los usuarios:', error);
     res.status(500).json({ ok: false, message: 'Error al obtener los usuarios' });
   }
 });
+router.get('/user/:usercode', authToken, (req, res) => {
+  const { usercode } = req.params;
+
+  // Sólo permitir ver los datos del propio usuario
+  if (req.user.code !== usercode) {
+    return res.status(403).json({ ok: false, message: 'No puedes ver estos datos' });
+  }
+
+  const query = 'select * from incidents where creator_user_code = $1';
+  pool.query(query, [usercode], (error, result) => {
+    if (error) {
+      console.error('Error al obtener las incidencias del usuario:', error);
+      return res.status(500).json({ ok: false, message: 'Error al obtener las incidencias del usuario' });
+    }
+    res.json({ ok: true, data: result.rows });
+  });
+});
+
 
 export default router;
