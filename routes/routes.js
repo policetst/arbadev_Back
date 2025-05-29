@@ -419,8 +419,9 @@ router.get('/incidents/:code/peoplecount', authToken, async (req, res) => {
 //* ruote to show people
 router.get('/people', async (req, res) => {
   try {
-    const people = show_people();
-    res.status(200).json({ ok: true, data: people});
+    const query = 'SELECT * FROM people';
+    const result = await pool.query(query);
+    res.status(200).json({ ok: true, data: result.rows});
   } catch (err) {res.status(500).json({ ok: false, error:err})}
 });
 
@@ -429,6 +430,7 @@ router.get('/incidents/:code/vehiclescount', authToken, async (req, res) => {
   const { code } = req.params;
   const result = await pool.query(`select count(*) from incidents_vehicles where incident_code='${code}'`);
   res.json({ ok: true, count: result.rows[0].count });
+
 });
 
 //* route to close an incident
@@ -439,6 +441,10 @@ router.put('/incidents/:code/:usercode/close', authToken, async (req, res) => {
   res.json({ ok: true, message: 'Incidencia cerrada correctamente' });
   
 });
+
+// * Get de una persona
+// * Update de una persona
+
 
 // * Route to get users 
 router.get('/users', authToken, async (req, res) => {
