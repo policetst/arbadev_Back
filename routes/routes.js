@@ -6,7 +6,7 @@ import path from 'path';
 import pool from '../db/db.js';
 import bcrypt from 'bcrypt';
 import { upload, persistentPath } from '../multer/multer.js';
-import { add_people, add_vehicle } from '../functions.js';
+import { add_people, add_vehicle, show_people } from '../functions.js';
 import dotenv from 'dotenv';
 import { log } from 'console';
 
@@ -410,17 +410,29 @@ router.get('/incidents/:code/details', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al obtener detalles de la incidencia' });
   }
 });
+
 //* route to get the count of people in a incident
 router.get('/incidents/:code/peoplecount', authToken, async (req, res) => {
   const { code } = req.params;
   const result = await pool.query(`select count(*) from incidents_people where incident_code='${code}'`);
   res.json({ ok: true, count: result.rows[0].count });
 });
+
+//* ruote to show people
+router.get('/people', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM people';
+    const result = await pool.query(query);
+    res.status(200).json({ ok: true, data: result.rows});
+  } catch (err) {res.status(500).json({ ok: false, error:err})}
+});
+
 //* route to get the count of vehicles in a incident
 router.get('/incidents/:code/vehiclescount', authToken, async (req, res) => {
   const { code } = req.params;
   const result = await pool.query(`select count(*) from incidents_vehicles where incident_code='${code}'`);
   res.json({ ok: true, count: result.rows[0].count });
+
 });
 
 //* route to close an incident
@@ -431,6 +443,11 @@ router.put('/incidents/:code/:usercode/close', authToken, async (req, res) => {
   res.json({ ok: true, message: 'Incidencia cerrada correctamente' });
   
 });
+
+// * Get de una persona
+// * Update de una persona
+
+
 // * Route to get users 
 router.get('/users',authToken, async (req, res) => {
   console.log('users');
