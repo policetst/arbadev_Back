@@ -28,6 +28,19 @@ export const add_people = async (person) => {
   }
 };
 
+
+/**
+ * Muestra personas de la base de datos
+ * @returns {promise}
+ */
+export const show_people = async () => {
+  const query = 'SELECT * FROM people';
+  const result = await pool.query(query);
+  return result.rows;
+
+};
+
+
 /*
  * Añade un solo vehículo a la base de datos
  * @param {Object} vehicle - datos del vehículo
