@@ -417,7 +417,7 @@ router.get('/incidents/:code/peoplecount', authToken, async (req, res) => {
 });
 
 //* ruote to show people
-router.get('/people', authToken, async (req, res) => {
+router.get('/people', async (req, res) => {
   try {
     const people = show_people();
     res.status(200).json({ ok: true, data: people});
