@@ -14,14 +14,14 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-//! exposer static files from the uploads folder
+//! Exponer archivos estáticos desde la carpeta uploads
 app.use('/files', express.static(persistentPath));
 
-//* load routes at /
+//* Cargar rutas en /
 app.use('/', router);
 app.use('/people', Peoplerouter)
 
 
 app.listen(port, () => {
-  console.log(` server running on port ${port}`);
+  console.log(`Server running on port ${port}`);
 });

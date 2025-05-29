@@ -411,6 +411,7 @@ router.get('/incidents/:code/details', authToken, async (req, res) => {
   }
 });
 
+
 //* route to get the count of people in a incident
 router.get('/incidents/:code/peoplecount', authToken, async (req, res) => {
   const { code } = req.params;
@@ -418,22 +419,70 @@ router.get('/incidents/:code/peoplecount', authToken, async (req, res) => {
   res.json({ ok: true, count: result.rows[0].count });
 });
 
-//* ruote to show people
+
+//* Route to show people
 router.get('/people', async (req, res) => {
   try {
     const query = 'SELECT * FROM people';
     const result = await pool.query(query);
     res.status(200).json({ ok: true, data: result.rows});
-  } catch (err) {res.status(500).json({ ok: false, error:err})}
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message});
+  }
 });
+
+
+// * Route to get person
+router.get('/people/:dni', async (req, res) => {
+  const { dni } = req.params;
+  try {
+    const query = 'SELECT * FROM people WHERE dni = $1';
+    const result = await pool.query(query, [dni]);
+
+    if (result.rows.length <= 0) {
+      return res.status(404).json({ ok: false, message: 'Persona no encontrada' });
+    }
+
+    res.status(200).json({ ok: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
+// * Route to upgrade a person
+router.put('/people/:dni', async (req, res) => {
+  const { dni } = req.params;
+  const { first_name, last_name1, last_name2, phone_number } = req.body;
+
+  try {
+    const query = `
+      UPDATE people
+      SET first_name = $1, last_name1 = $2, last_name2 = $3, phone_number = $4
+      WHERE dni = $5
+      RETURNING *;
+    `;
+    const values = [first_name, last_name1, last_name2, phone_number, dni];
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Persona no encontrada para actualizar' });
+    }
+
+    res.status(200).json({ ok: true, message: 'Persona actualizada', data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 
 //* route to get the count of vehicles in a incident
 router.get('/incidents/:code/vehiclescount', authToken, async (req, res) => {
   const { code } = req.params;
   const result = await pool.query(`select count(*) from incidents_vehicles where incident_code='${code}'`);
   res.json({ ok: true, count: result.rows[0].count });
-
 });
+
 
 //* route to close an incident
 router.put('/incidents/:code/:usercode/close', authToken, async (req, res) => {
@@ -443,9 +492,6 @@ router.put('/incidents/:code/:usercode/close', authToken, async (req, res) => {
   res.json({ ok: true, message: 'Incidencia cerrada correctamente' });
   
 });
-
-// * Get de una persona
-// * Update de una persona
 
 
 // * Route to get users 
