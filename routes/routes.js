@@ -432,12 +432,12 @@ router.get('/people', async (req, res) => {
 
 // * Route to get person
 router.get('/people/:dni', async (req, res) => {
-  const { id } = req.params;
+  const { dni } = req.params;
   try {
     const query = 'SELECT * FROM people WHERE dni = $1';
-    const result = await pathToFileURL.query(query, [id]);
+    const result = await pool.query(query, [dni]);
 
-    if (result.rows.length === 0) {
+    if (result.rows.length <= 0) {
       return res.status(404).json({ ok: false, message: 'Persona no encontrada' });
     }
 
