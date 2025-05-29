@@ -431,10 +431,10 @@ router.get('/people', async (req, res) => {
 
 
 // * Route to get person
-router.get('/people/:id', async (req, res) => {
+router.get('/people/:dni', async (req, res) => {
   const { id } = req.params;
   try {
-    const query = 'SELECT * FROM pople WHERE id = $1';
+    const query = 'SELECT * FROM people WHERE dni = $1';
     const result = await pathToFileURL.query(query, [id]);
 
     if (result.rows.length === 0) {
@@ -449,18 +449,18 @@ router.get('/people/:id', async (req, res) => {
 
 
 // * Route to upgrade a person
-router.put('/people/:id', async (req, res) => {
-  const { id } = req.params;
-  const { nombre, apellido1, apellido2, dni } = req.body;
+router.put('/people/:dni', async (req, res) => {
+  const { dni } = req.params;
+  const { first_name, last_name1, last_name2, phone_number } = req.body;
 
   try {
     const query = `
       UPDATE people
-      SET nombre = $1, apellido1 = $2, apellido2 = $3, dni = $4
-      WHERE id = $5
+      SET first_name = $1, last_name1 = $2, last_name2 = $3, phone_number = $4
+      WHERE dni = $5
       RETURNING *;
     `;
-    const values = [nombre, apellido1, apellido2, dni, id];
+    const values = [first_name, last_name1, last_name2, phone_number, dni];
     const result = await pool.query(query, values);
 
     if (result.rows.length === 0) {
