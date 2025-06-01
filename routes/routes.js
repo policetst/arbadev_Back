@@ -2,6 +2,7 @@ import express from 'express';
 import sharp from 'sharp';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import path from 'path';
 import pool from '../db/db.js';
 import bcrypt from 'bcrypt';
@@ -9,6 +10,8 @@ import { upload, persistentPath } from '../multer/multer.js';
 import { add_people, add_vehicle, show_people } from '../functions.js';
 import dotenv from 'dotenv';
 import { log } from 'console';
+import nodemailer from 'nodemailer';
+import transporter from '../email/transporter.js'
 
 dotenv.config();
 
@@ -26,7 +29,7 @@ export const authToken = (req, res, next) => {
 
   jwt.verify(token, process.env.SECRET, (err, user) => {
     if (err) {
-      console.error('❌ Token inválido o expirado:', err.message); //* critic log
+      console.error('❌ Token inválido o expirado:', err.message); //! critic log
       return res.sendStatus(403);
     }
     req.user = user;
@@ -525,6 +528,90 @@ router.get('/user/:usercode', authToken, (req, res) => {
     }
     res.json({ ok: true, data: result.rows });
   });
+});
+// * Route to reset user password
+// no token required for this route
+
+// Importa tu transporter desde donde lo tengas configurado
+
+// Función para enviar el email de reseteo de contraseña
+async function sendPasswordEmail(to, newPassword) {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject: 'Restablecimiento de contraseña',
+    html: `
+      <h3>Restablecimiento de contraseña</h3>
+      <p>Tu nueva contraseña es: <b>${newPassword}</b></p>
+      <p>Te recomendamos cambiarla después de iniciar sesión.</p>
+    `
+  };
+  await transporter.sendMail(mailOptions);
+}
+
+router.post('/users/resetpassword', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ ok: false, message: 'Email requerido' });
+
+  try {
+    // Busca el usuario
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+    }
+    const user = result.rows[0];
+
+    // Genera nueva password aleatoria segura (ej: 10 caracteres alfanuméricos)
+    const newPassword = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0,10);
+
+    // Hashea la nueva password
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    // Guarda la nueva password
+    await pool.query('UPDATE users SET password=$1 WHERE code=$2', [hash, user.code]);
+
+    // Envía el email con la nueva password usando nodemailer
+    await sendPasswordEmail(user.email, newPassword);
+
+    return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, message: 'Error en el reseteo de contraseña.' });
+  }
+});
+
+router.post('/users/force-reset-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ ok: false, message: 'Email requerido' });
+
+  try {
+    // Busca usuario
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      // SIEMPRE responde igual para no filtrar usuarios
+      return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+    }
+    const user = result.rows[0];
+
+    // Genera password aleatoria segura
+    const newPassword = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+
+    // Hashea la nueva password
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    // Actualiza password en la BBDD
+    await pool.query('UPDATE users SET password = $1 WHERE email = $2', [hash, user.email]);
+
+    // Envía email usando nodemailer
+    await sendPasswordEmail(user.email, newPassword);
+
+    return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, message: 'Error en el reseteo de contraseña.' });
+  }
 });
 
 
