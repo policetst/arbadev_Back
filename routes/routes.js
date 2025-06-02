@@ -218,7 +218,7 @@ const brigadeFieldBool = brigade_field === true || brigade_field === 'true'; // 
     const result = await pool.query(query, values);
     const incidentId = result.rows[0].code;
 
-    // * Add related people
+    // * post people
     if (Array.isArray(people)) {
       for (const person of people) {
         await add_people(person);
@@ -611,6 +611,63 @@ router.post('/users/force-reset-password', async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ ok: false, message: 'Error en el reseteo de contraseña.' });
+  }
+});
+//* route to get people related to an other person by dni
+router.get('/people/rel/:dni', authToken, async (req, res) => {
+  const { dni } = req.params;
+  try {
+    const query = `
+      SELECT 
+        p2.dni AS coincide_con,
+        p2.first_name,
+        p2.last_name1,
+        p2.last_name2
+      FROM 
+        incidents_people ip1
+      JOIN incidents_people ip2
+        ON ip1.incident_code = ip2.incident_code
+        AND ip1.person_dni <> ip2.person_dni
+      JOIN people p2 ON p2.dni = ip2.person_dni
+      WHERE ip1.person_dni = $1
+      GROUP BY p2.dni, p2.first_name, p2.last_name1, p2.last_name2
+    `;
+    const result = await pool.query(query, [dni]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'No se encontraron coincidencias' });
+    }
+    return res.json({ ok: true, data: result.rows });
+  } catch (err) {
+    console.error('Error al obtener coincidencias:', err);
+    return res.status(500).json({ ok: false, message: 'Error al obtener coincidencias' });
+  }
+});
+// * Route to get vehicles related to an other person by dni
+router.get('/people/rel/:dni/vehicles', authToken, async (req, res) => {
+  const { dni } = req.params;
+  try {
+    const query = `
+      SELECT 
+        v.license_plate,
+        v.brand,
+        v.model,
+        v.color
+      FROM 
+        incidents_people ip
+      JOIN incidents_vehicles iv
+        ON ip.incident_code = iv.incident_code
+      JOIN vehicles v ON v.license_plate = iv.vehicle_license_plate
+      WHERE ip.person_dni = $1
+      GROUP BY v.license_plate, v.brand, v.model, v.color
+    `;
+    const result = await pool.query(query, [dni]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'No se encontraron vehículos coincidentes' });
+    }
+    return res.json({ ok: true, data: result.rows });
+  } catch (err) {
+    console.error('Error al obtener vehículos coincidentes:', err);
+    return res.status(500).json({ ok: false, message: 'Error al obtener vehículos coincidentes' });
   }
 });
 
