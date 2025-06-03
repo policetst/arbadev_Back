@@ -671,7 +671,7 @@ router.get('/people/rel/:dni/vehicles', authToken, async (req, res) => {
   }
 });
 // * Route to get a user role by code
-router.get('/users/role/:code', async (req, res) => {
+router.get('/users/role/:code', authToken, async (req, res) => {
   const { code } = req.params;
   try {
     const result = await pool.query('SELECT role FROM users WHERE code = $1', [code]);
