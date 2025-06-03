@@ -703,7 +703,6 @@ router.put('/users/:code', authToken, async (req, res) => {
   const { code } = req.params;
   const {email, password,role, status } = req.body;
   try {
-    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
     // Check if the user exists
     const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
     if (userResult.rows.length === 0) {
@@ -711,10 +710,15 @@ router.put('/users/:code', authToken, async (req, res) => {
     }
 
     // Update user details
-    const query = `
+    const query = password ? `
       UPDATE users 
       SET email = $1, password = $2, role = $3, status = $4 
       WHERE code = $5 
+      RETURNING *;
+    ` : `
+      UPDATE users 
+      SET email = $1, role = $2, status = $3 
+      WHERE code = $4 
       RETURNING *;
     `;
     const values = [ email, password, role, status, code];
