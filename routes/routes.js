@@ -777,7 +777,9 @@ router.put('/users/:code/password', authToken, async (req, res) => {
     console.error('Error al actualizar la contraseña del usuario:', error);
     res.status(500).json({ ok: false, message: 'Error al actualizar la contraseña del usuario' });
   }
-}
+});
+// * Route to delete a user
+//*route to create a new user
 
 
 export default router;
