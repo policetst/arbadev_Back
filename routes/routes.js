@@ -670,6 +670,21 @@ router.get('/people/rel/:dni/vehicles', authToken, async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Error al obtener vehículos coincidentes' });
   }
 });
+// * Route to get a user role by code
+router.get('/users/role/:code', async (req, res) => {
+  const { code } = req.params;
+  try {
+    const result = await pool.query('SELECT role FROM users WHERE code = $1', [code]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
+    res.json({ ok: true, role: result.rows[0].role });
+  } catch (error) {
+    console.error('Error al obtener el rol del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener el rol del usuario' });
+  }
+});
+
 
 
 export default router;
