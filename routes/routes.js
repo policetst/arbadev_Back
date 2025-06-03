@@ -710,7 +710,7 @@ router.put('/users/:code', authToken, async (req, res) => {
     }
 
     // Update user details
-    const query = password ? `
+    const query = password !== "" ? `
       UPDATE users 
       SET email = $1, password = $2, role = $3, status = $4 
       WHERE code = $5 
