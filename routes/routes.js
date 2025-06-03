@@ -701,22 +701,30 @@ router.get('/users/:code', authToken, async (req, res) => {
 // * Route to update user details
 router.put('/users/:code', authToken, async (req, res) => {
   const { code } = req.params;
-  const {email, password,role, status } = req.body;
+  const { email, password, role, status } = req.body;
   try {
-    // Check if the user exists
+    // Comprobar que el usuario existe
     const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
     }
 
-    // Update user details
-    const query = `
+ 
+    const query = password !== "" ? `
       UPDATE users 
       SET email = $1, password = $2, role = $3, status = $4 
       WHERE code = $5 
       RETURNING *;
-    `;
-    const values = [ email, password, role, status, code];
+    ` : `
+      UPDATE users 
+      SET email = $1, role = $2, status = $3 
+      WHERE code = $4 
+      RETURNING *;`;
+
+    const values = password !== ""
+      ? [email, password, role, status, code]
+      : [email, role, status, code];
+
     const result = await pool.query(query, values);
 
     res.json({ ok: true, user: result.rows[0] });
@@ -725,6 +733,7 @@ router.put('/users/:code', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al actualizar los detalles del usuario' });
   }
 });
+
 //* get all users
 router.get('/users', authToken, async (req, res) => {
   try {
