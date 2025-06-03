@@ -747,6 +747,37 @@ router.get('/users', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al obtener los usuarios' });
   }
 });
+// * update user password and email
+router.put('/users/:code/password', authToken, async (req, res) => {
+  const { code } = req.params;
+  const { email, password } = req.body;
+
+  try {
+    // Comprobar que el usuario existe
+    const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
+
+    // Hashear la nueva contraseña
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const query = `
+      UPDATE users 
+      SET email = $1, password = $2 
+      WHERE code = $3 
+      RETURNING *;
+    `;
+    const values = [email, hashedPassword, code];
+
+    const result = await pool.query(query, values);
+
+    res.json({ ok: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Error al actualizar la contraseña del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar la contraseña del usuario' });
+  }
+}
 
 
 export default router;
