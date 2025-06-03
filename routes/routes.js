@@ -684,7 +684,60 @@ router.get('/users/role/:code', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al obtener el rol del usuario' });
   }
 });
+// * Route to get user details by code
+router.get('/users/:code', authToken, async (req, res) => {
+  const { code } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
+    res.json({ ok: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Error al obtener los detalles del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener los detalles del usuario' });
+  }
+});
+// * Route to update user details
+router.put('/users/:code', authToken, async (req, res) => {
+  const { code } = req.params;
+  const {email, password,role, status } = req.body;
+  try {
+    // Check if the user exists
+    const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
 
+    // Update user details
+    const query = `
+      UPDATE users 
+      SET code = $1, email = $2, password = $3, role = $4, status = $5 
+      WHERE code = $6 
+      RETURNING *;
+    `;
+    const values = [code, email, password, role, status, code];
+    const result = await pool.query(query, values);
+
+    res.json({ ok: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Error al actualizar los detalles del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar los detalles del usuario' });
+  }
+});
+//* get all users
+router.get('/users', authToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM users');
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'No se encontraron usuarios' });
+    }
+    res.json({ ok: true, users: result.rows });
+  } catch (error) {
+    console.error('Error al obtener los usuarios:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener los usuarios' });
+  }
+});
 
 
 export default router;
