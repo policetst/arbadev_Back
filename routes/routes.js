@@ -712,11 +712,11 @@ router.put('/users/:code', authToken, async (req, res) => {
     // Update user details
     const query = `
       UPDATE users 
-      SET code = $1, email = $2, password = $3, role = $4, status = $5 
-      WHERE code = $6 
+      SET email = $1, password = $2, role = $3, status = $4 
+      WHERE code = $5 
       RETURNING *;
     `;
-    const values = [code, email, password, role, status, code];
+    const values = [ email, password, role, status, code];
     const result = await pool.query(query, values);
 
     res.json({ ok: true, user: result.rows[0] });
