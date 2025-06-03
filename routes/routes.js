@@ -759,16 +759,13 @@ router.put('/users/:code/password', authToken, async (req, res) => {
       return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
     }
 
-    // Hashear la nueva contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     const query = `
       UPDATE users 
       SET email = $1, password = $2 
       WHERE code = $3 
       RETURNING *;
     `;
-    const values = [email, hashedPassword, code];
+    const values = [email, password, code];
 
     const result = await pool.query(query, values);
 
