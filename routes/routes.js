@@ -775,26 +775,6 @@ router.put('/users/:code/password', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al actualizar la contraseña del usuario' });
   }
 });
-// * Route to delete a user
-router.delete('/users/:code', authToken, async (req, res) => {
-  const { code } = req.params;
-
-  try {
-    // Comprobar que el usuario existe
-    const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
-    }
-
-    // Eliminar el usuario
-    await pool.query('DELETE FROM users WHERE code = $1', [code]);
-
-    res.json({ ok: true, message: 'Usuario eliminado correctamente' });
-  } catch (error) {
-    console.error('Error al eliminar el usuario:', error);
-    res.status(500).json({ ok: false, message: 'Error al eliminar el usuario' });
-  }
-});
 //*route to create a new user
 router.post('/users', authToken, async (req, res) => {
   const { code, email, password, role, status } = req.body;
