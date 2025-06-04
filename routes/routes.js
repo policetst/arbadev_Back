@@ -700,6 +700,7 @@ router.get('/users/:code', authToken, async (req, res) => {
 });
 // * Route to update user details
 router.put('/users/:code', authToken, async (req, res) => {
+
   const { code } = req.params;
   const { email, password, role, status } = req.body;
   try {
@@ -725,6 +726,7 @@ router.put('/users/:code', authToken, async (req, res) => {
     console.error('Error al actualizar los detalles del usuario:', error);
     res.status(500).json({ ok: false, message: 'Error al actualizar los detalles del usuario' });
   }
+  
 });
 
 //* get all users
