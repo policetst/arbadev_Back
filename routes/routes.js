@@ -710,20 +710,13 @@ router.put('/users/:code', authToken, async (req, res) => {
     }
 
  
-    const query = password !== "" ? `
+    const query = `
       UPDATE users 
       SET email = $1, password = $2, role = $3, status = $4 
       WHERE code = $5 
-      RETURNING *;
-    ` : `
-      UPDATE users 
-      SET email = $1, role = $2, status = $3 
-      WHERE code = $4 
-      RETURNING *;`;
+      RETURNING *`;
 
-    const values = password !== ""
-      ? [email, password, role, status, code]
-      : [email, role, status, code];
+    const values = [email, password, role, status, code];
 
     const result = await pool.query(query, values);
 
