@@ -509,7 +509,7 @@ router.get('/vehicles/:license_plate', async (req, res) => {
 
 
 // * Route to upgrade a vehicle
-router.put('/vehicle/:license_plate', async (req, res) => {
+router.put('/vehicles/:license_plate', async (req, res) => {
   const { license_plate } = req.params;
   const { brand, model, color } = req.body;
 
