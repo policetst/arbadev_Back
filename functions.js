@@ -40,6 +40,14 @@ export const show_people = async () => {
 
 };
 
+// Muestra los vehiculos de la base de datos
+export const show_vehicles = async () => {
+  const query = 'SELECT * FROM vehicles';
+  const result = await pool.query(query);
+  return result.rows;
+
+};
+
 
 /*
  * Añade un solo vehículo a la base de datos
