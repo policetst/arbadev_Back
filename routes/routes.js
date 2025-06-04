@@ -2,6 +2,7 @@ import express from 'express';
 import sharp from 'sharp';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import path from 'path';
 import pool from '../db/db.js';
 import bcrypt from 'bcrypt';
@@ -9,6 +10,8 @@ import { upload, persistentPath } from '../multer/multer.js';
 import { add_people, add_vehicle, show_people, show_vehicles } from '../functions.js';
 import dotenv from 'dotenv';
 import { log } from 'console';
+import nodemailer from 'nodemailer';
+import transporter from '../email/transporter.js'
 
 dotenv.config();
 
@@ -26,7 +29,7 @@ export const authToken = (req, res, next) => {
 
   jwt.verify(token, process.env.SECRET, (err, user) => {
     if (err) {
-      console.error('❌ Token inválido o expirado:', err.message); //* critic log
+      console.error('❌ Token inválido o expirado:', err.message); //! critic log
       return res.sendStatus(403);
     }
     req.user = user;
@@ -215,7 +218,7 @@ const brigadeFieldBool = brigade_field === true || brigade_field === 'true'; // 
     const result = await pool.query(query, values);
     const incidentId = result.rows[0].code;
 
-    // * Add related people
+    // * post people
     if (Array.isArray(people)) {
       for (const person of people) {
         await add_people(person);
@@ -583,6 +586,261 @@ router.get('/user/:usercode', authToken, (req, res) => {
     res.json({ ok: true, data: result.rows });
   });
 });
+// * Route to reset user password
+// no token required for this route
 
+// Importa tu transporter desde donde lo tengas configurado
+
+// Función para enviar el email de reseteo de contraseña
+async function sendPasswordEmail(to, newPassword) {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject: 'Restablecimiento de contraseña',
+    html: `
+      <h3>Restablecimiento de contraseña</h3>
+      <p>Tu nueva contraseña es: <b>${newPassword}</b></p>
+      <p>Te recomendamos cambiarla después de iniciar sesión.</p>
+    `
+  };
+  await transporter.sendMail(mailOptions);
+}
+
+router.post('/users/resetpassword', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ ok: false, message: 'Email requerido' });
+
+  try {
+    // Busca el usuario
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+    }
+    const user = result.rows[0];
+
+    // Genera nueva password aleatoria segura (ej: 10 caracteres alfanuméricos)
+    const newPassword = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0,10);
+
+    // Hashea la nueva password
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    // Guarda la nueva password
+    await pool.query('UPDATE users SET password=$1 WHERE code=$2', [hash, user.code]);
+
+    // Envía el email con la nueva password usando nodemailer
+    await sendPasswordEmail(user.email, newPassword);
+
+    return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, message: 'Error en el reseteo de contraseña.' });
+  }
+});
+
+router.post('/users/force-reset-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ ok: false, message: 'Email requerido' });
+
+  try {
+    // Busca usuario
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      // SIEMPRE responde igual para no filtrar usuarios
+      return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+    }
+    const user = result.rows[0];
+
+    // Genera password aleatoria segura
+    const newPassword = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+
+    // Hashea la nueva password
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    // Actualiza password en la BBDD
+    await pool.query('UPDATE users SET password = $1 WHERE email = $2', [hash, user.email]);
+
+    // Envía email usando nodemailer
+    await sendPasswordEmail(user.email, newPassword);
+
+    return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, message: 'Error en el reseteo de contraseña.' });
+  }
+});
+//* route to get people related to an other person by dni
+router.get('/people/rel/:dni', authToken, async (req, res) => {
+  const { dni } = req.params;
+  try {
+    const query = `
+      SELECT 
+        p2.dni AS coincide_con,
+        p2.first_name,
+        p2.last_name1,
+        p2.last_name2
+      FROM 
+        incidents_people ip1
+      JOIN incidents_people ip2
+        ON ip1.incident_code = ip2.incident_code
+        AND ip1.person_dni <> ip2.person_dni
+      JOIN people p2 ON p2.dni = ip2.person_dni
+      WHERE ip1.person_dni = $1
+      GROUP BY p2.dni, p2.first_name, p2.last_name1, p2.last_name2
+    `;
+    const result = await pool.query(query, [dni]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'No se encontraron coincidencias' });
+    }
+    return res.json({ ok: true, data: result.rows });
+  } catch (err) {
+    console.error('Error al obtener coincidencias:', err);
+    return res.status(500).json({ ok: false, message: 'Error al obtener coincidencias' });
+  }
+});
+// * Route to get vehicles related to an other person by dni
+router.get('/people/rel/:dni/vehicles', authToken, async (req, res) => {
+  const { dni } = req.params;
+  try {
+    const query = `
+      SELECT 
+        v.license_plate,
+        v.brand,
+        v.model,
+        v.color
+      FROM 
+        incidents_people ip
+      JOIN incidents_vehicles iv
+        ON ip.incident_code = iv.incident_code
+      JOIN vehicles v ON v.license_plate = iv.vehicle_license_plate
+      WHERE ip.person_dni = $1
+      GROUP BY v.license_plate, v.brand, v.model, v.color
+    `;
+    const result = await pool.query(query, [dni]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'No se encontraron vehículos coincidentes' });
+    }
+    return res.json({ ok: true, data: result.rows });
+  } catch (err) {
+    console.error('Error al obtener vehículos coincidentes:', err);
+    return res.status(500).json({ ok: false, message: 'Error al obtener vehículos coincidentes' });
+  }
+});
+// * Route to get a user role by code
+router.get('/users/role/:code', authToken, async (req, res) => {
+  const { code } = req.params;
+  try {
+    const result = await pool.query('SELECT role FROM users WHERE code = $1', [code]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
+    res.json({ ok: true, role: result.rows[0].role });
+  } catch (error) {
+    console.error('Error al obtener el rol del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener el rol del usuario' });
+  }
+});
+// * Route to get user details by code
+router.get('/users/:code', authToken, async (req, res) => {
+  const { code } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
+    res.json({ ok: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Error al obtener los detalles del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener los detalles del usuario' });
+  }
+});
+// * Route to update user details
+router.put('/users/:code', authToken, async (req, res) => {
+  const { code } = req.params;
+  const { email, password, role, status } = req.body;
+  try {
+    // Comprobar que el usuario existe
+    const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
+
+ 
+    const query = `
+      UPDATE users 
+      SET email = $1, password = $2, role = $3, status = $4 
+      WHERE code = $5 
+      RETURNING *`;
+
+    const values = [email, password, role, status, code];
+
+    const result = await pool.query(query, values);
+
+    res.json({ ok: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Error al actualizar los detalles del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar los detalles del usuario' });
+  }
+});
+
+//* get all users
+router.get('/users', authToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM users');
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'No se encontraron usuarios' });
+    }
+    res.json({ ok: true, users: result.rows });
+  } catch (error) {
+    console.error('Error al obtener los usuarios:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener los usuarios' });
+  }
+});
+// * update user password and email
+router.put('/users/:code/password', authToken, async (req, res) => {
+  const { code } = req.params;
+  const { email, password } = req.body;
+
+  try {
+    // Comprobar que el usuario existe
+    const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+    }
+
+    const query = `
+      UPDATE users 
+      SET email = $1, password = $2 
+      WHERE code = $3 
+      RETURNING *;
+    `;
+    const values = [email, password, code];
+
+    const result = await pool.query(query, values);
+
+    res.json({ ok: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Error al actualizar la contraseña del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar la contraseña del usuario' });
+  }
+});
+//*route to create a new user
+router.post('/users', authToken, async (req, res) => {
+  const { code, email, password, role, status } = req.body;
+
+  try {
+    const result = await pool.query(`
+      INSERT INTO users (code, email, password, role, status)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *;
+    `, [code, email, password, role, status]);
+
+    res.status(201).json({ ok: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Error al crear el usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al crear el usuario' });
+  }
+});
 
 export default router;
