@@ -516,7 +516,7 @@ router.put('/vehicle/:license_plate', async (req, res) => {
   try {
     const query = `
       UPDATE vehicles
-      SET brand = $1, last_modelname1 = $2, color = $3
+      SET brand = $1, model = $2, color = $3
       WHERE license_plate = $4
       RETURNING *;
     `;
