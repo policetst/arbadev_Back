@@ -6,7 +6,7 @@ import path from 'path';
 import pool from '../db/db.js';
 import bcrypt from 'bcrypt';
 import { upload, persistentPath } from '../multer/multer.js';
-import { add_people, add_vehicle, show_people } from '../functions.js';
+import { add_people, add_vehicle, show_people, show_vehicles } from '../functions.js';
 import dotenv from 'dotenv';
 import { log } from 'console';
 
@@ -474,6 +474,63 @@ router.put('/people/:dni', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+//* Route to show vehicles   
+router.get('/vehicles', async (req, res) => {
+  try {
+    const vehicles = await show_vehicles();
+    res.json({ ok: true, data: vehicles });
+  } catch (err) {
+    console.error('Error al obtener vehículos:', err);
+    res.status(500).json({ ok: false, message: 'Error al obtener vehículos' });
+  }
+});
+
+
+// * Route to get vehicle
+router.get('/vehicles/:license_plate', async (req, res) => {
+  const { license_plate } = req.params;
+  try {
+    const query = 'SELECT * FROM vehicles WHERE license_plate = $1';
+    const result = await pool.query(query, [license_plate]);
+
+    if (result.rows.length <= 0) {
+      return res.status(404).json({ ok: false, message: 'Vehiculo no encontrado' });
+    }
+
+    res.status(200).json({ ok: true, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
+// * Route to upgrade a vehicle
+router.put('/vehicle/:license_plate', async (req, res) => {
+  const { license_plate } = req.params;
+  const { brand, model, color } = req.body;
+
+  try {
+    const query = `
+      UPDATE vehicles
+      SET brand = $1, last_modelname1 = $2, color = $3
+      WHERE license_plate = $4
+      RETURNING *;
+    `;
+    const values = [brand, model, color, license_plate];
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Vehiculo no encontrado para actualizar' });
+    }
+
+    res.status(200).json({ ok: true, message: 'Vehiculo actualizado', data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
 
 
 //* route to get the count of vehicles in a incident

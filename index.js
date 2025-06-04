@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { persistentPath } from './multer/multer.js';
 import Peoplerouter from './routes/personRouter.js';
 import router from './routes/routes.js';
+// import vehiclesRouter from './routes/vehicles.js';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -21,6 +22,7 @@ app.use('/files', express.static(persistentPath));
 app.use('/', router);
 app.use('/people', Peoplerouter)
 
+// app.use('/vehicles', vehiclesRouter);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
