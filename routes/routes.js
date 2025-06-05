@@ -844,5 +844,15 @@ router.post('/users', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al crear el usuario' });
   }
 });
+//* get Open incidents
+router.get('/incidents/open', authToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM incidents WHERE status = $1', ['Open']);
+    res.json({ ok: true, incidents: result.rows });
+  } catch (error) {
+    console.error('Error al obtener las incidencias abiertas:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener las incidencias abiertas' });
+  }
+});
 
 export default router;
