@@ -855,5 +855,27 @@ router.get('/incidents/open', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al obtener las incidencias abiertas' });
   }
 });
+//* route to get email from config
+router.get('/config/email', authToken, async (req, res) => {
+  try{
+    const query = 'SELECT * FROM app_config';
+    const result = await pool.query(query);
+    res.json({ ok: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error al obtener la configuración de email:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener la configuración de email' });
+  }});
+// * Route to update email configuration
+router.put('/config/email', authToken, async (req, res) => {
+  const { email } = req.body;
+  try {
+    const query = 'UPDATE app_config SET email = $1';
+    await pool.query(query, [email]);
+    res.json({ ok: true, message: 'Configuración de email actualizada' });
+  } catch (error) {
+    console.error('Error al actualizar la configuración de email:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar la configuración de email' });
+  }
+});
 
 export default router;
