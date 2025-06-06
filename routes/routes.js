@@ -569,6 +569,7 @@ if (result.rows.length === 0) {
     res.status(500).json({ ok: false, message: 'Error al obtener los usuarios' });
   }
 });
+// * Route to get incidents by user code
 router.get('/user/:usercode', authToken, (req, res) => {
   const { usercode } = req.params;
 
