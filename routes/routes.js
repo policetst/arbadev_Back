@@ -866,10 +866,10 @@ router.get('/config/email', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al obtener la configuración de email' });
   }});
 // * Route to update email configuration
-router.put('/config/email', authToken, async (req, res) => {
+router.post('/config/email', authToken, async (req, res) => {
   const { email } = req.body;
   try {
-    const query = 'UPDATE app_config SET brigade_field = $1';
+    const query = 'INSERT INTO app_config (brigade_field) VALUES ($1)';
     await pool.query(query, [email]);
     res.json({ ok: true, message: 'Configuración de email actualizada' });
   } catch (error) {
