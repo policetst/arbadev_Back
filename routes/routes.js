@@ -860,16 +860,16 @@ router.get('/config/email', authToken, async (req, res) => {
   try{
     const query = 'SELECT * FROM app_config';
     const result = await pool.query(query);
-    res.json({ ok: true, data: result.rows});
+    res.json({ ok: true, data: result.rows });
   } catch (error) {
     console.error('Error al obtener la configuración de email:', error);
     res.status(500).json({ ok: false, message: 'Error al obtener la configuración de email' });
   }});
 // * Route to update email configuration
-router.post('/config/email', authToken, async (req, res) => {
+router.put('/config/email', authToken, async (req, res) => {
   const { email } = req.body;
   try {
-    const query = 'INSERT INTO app_config (brigade_field) VALUES ($1)';
+    const query = 'UPDATE app_config SET brigade_field = $1';
     await pool.query(query, [email]);
     res.json({ ok: true, message: 'Configuración de email actualizada' });
   } catch (error) {
