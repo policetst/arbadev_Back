@@ -860,7 +860,7 @@ router.get('/config/email', authToken, async (req, res) => {
   try{
     const query = 'SELECT * FROM app_config';
     const result = await pool.query(query);
-    res.json({ ok: true, data: result.rows });
+    res.json({ ok: true, data: result.rows[0] });
   } catch (error) {
     console.error('Error al obtener la configuración de email:', error);
     res.status(500).json({ ok: false, message: 'Error al obtener la configuración de email' });
