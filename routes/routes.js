@@ -869,7 +869,7 @@ router.get('/config/email', authToken, async (req, res) => {
 router.put('/config/email', authToken, async (req, res) => {
   const { email } = req.body;
   try {
-    const query = 'UPDATE app_config SET email = $1';
+    const query = 'UPDATE app_config SET brigade_field = $1';
     await pool.query(query, [email]);
     res.json({ ok: true, message: 'Configuración de email actualizada' });
   } catch (error) {
