@@ -845,6 +845,7 @@ router.post('/users', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al crear el usuario' });
   }
 });
+
 //* get Open incidents
 router.get('/incidents/open', authToken, async (req, res) => {
   try {
@@ -886,6 +887,7 @@ router.put('/incidents/:code/teammate/:teammateCode', authToken, async (req, res
       UPDATE incidents
       SET teammate_code = $1
       WHERE code = $2
+    
       RETURNING *;
     `;
     const values = [teammateCode, code];
