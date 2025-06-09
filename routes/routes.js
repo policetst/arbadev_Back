@@ -885,7 +885,7 @@ router.put('/incidents/:code/teammate/:teammateCode', authToken, async (req, res
   try {
     const query = `
       UPDATE incidents
-      SET teammate_code = $1
+      SET team_mate = $1
       WHERE code = $2
     
       RETURNING *;
