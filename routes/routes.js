@@ -877,5 +877,29 @@ router.put('/config/email', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al actualizar la configuración de email' });
   }
 });
+// * Route to put teammate to a incident
+router.put('/incidents/:code/teammate/:teammateCode', authToken, async (req, res) => {
+  const { code, teammateCode } = req.params;
+
+  try {
+    const query = `
+      UPDATE incidents
+      SET teammate_code = $1
+      WHERE code = $2
+      RETURNING *;
+    `;
+    const values = [teammateCode, code];
+
+    const result = await pool.query(query, values);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Incidencia no encontrada' });
+    }
+
+    res.json({ ok: true, incident: result.rows[0] });
+  } catch (error) {
+    console.error('Error al asignar compañero a la incidencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al asignar compañero a la incidencia' });
+  }
+});
 
 export default router;
