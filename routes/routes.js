@@ -897,7 +897,7 @@ router.put('/incidents/:code/teammate/:teammateCode', authToken, async (req, res
       return res.status(404).json({ ok: false, message: 'Incidencia no encontrada' });
     }
 
-    res.json({ ok: true, incident: result.rows[0] });
+    res.status(200).json({ ok: true, incident: result.rows[0] });
   } catch (error) {
     console.error('Error al asignar compañero a la incidencia:', error);
     res.status(500).json({ ok: false, message: 'Error al asignar compañero a la incidencia' });
