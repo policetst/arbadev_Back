@@ -576,6 +576,7 @@ if (result.rows.length === 0) {
     res.status(500).json({ ok: false, message: 'Error al obtener los usuarios' });
   }
 });
+// * Route to get incidents by user code
 router.get('/user/:usercode', authToken, (req, res) => {
   const { usercode } = req.params;
 
@@ -849,6 +850,64 @@ router.post('/users', authToken, async (req, res) => {
   } catch (error) {
     console.error('Error al crear el usuario:', error);
     res.status(500).json({ ok: false, message: 'Error al crear el usuario' });
+  }
+});
+
+//* get Open incidents
+router.get('/incidents/open', authToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM incidents WHERE status = $1', ['Open']);
+    res.json({ ok: true, incidents: result.rows });
+  } catch (error) {
+    console.error('Error al obtener las incidencias abiertas:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener las incidencias abiertas' });
+  }
+});
+//* route to get email from config
+router.get('/config/email', authToken, async (req, res) => {
+  try{
+    const query = 'SELECT * FROM app_config';
+    const result = await pool.query(query);
+    res.json({ ok: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error al obtener la configuración de email:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener la configuración de email' });
+  }});
+// * Route to update email configuration
+router.put('/config/email', authToken, async (req, res) => {
+  const { email } = req.body;
+  try {
+    const query = 'UPDATE app_config SET brigade_field = $1';
+    await pool.query(query, [email]);
+    res.json({ ok: true, message: 'Configuración de email actualizada' });
+  } catch (error) {
+    console.error('Error al actualizar la configuración de email:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar la configuración de email' });
+  }
+});
+// * Route to put teammate to a incident
+router.put('/incidents/:code/teammate/:teammateCode', authToken, async (req, res) => {
+  const { code, teammateCode } = req.params;
+
+  try {
+    const query = `
+      UPDATE incidents
+      SET team_mate = $1
+      WHERE code = $2
+    
+      RETURNING *;
+    `;
+    const values = [teammateCode, code];
+
+    const result = await pool.query(query, values);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Incidencia no encontrada' });
+    }
+
+    res.status(200).json({ ok: true, incident: result.rows[0] });
+  } catch (error) {
+    console.error('Error al asignar compañero a la incidencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al asignar compañero a la incidencia' });
   }
 });
 

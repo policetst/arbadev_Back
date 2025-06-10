@@ -1,0 +1,34 @@
+{
+	"folders": [
+		{
+			"path": "../.cursor"
+		},
+		{
+			"path": "../application"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../docs"
+		},
+		{
+			"path": "../frontend"
+		},
+		{
+			"path": "../infraestructure"
+		},
+		{
+			"path": "../interfaces"
+		},
+		{
+			"path": "../routes"
+		},
+		{
+			"path": "../shared"
+		},
+		{
+			"path": "../Templates"
+		}
+	]
+}
