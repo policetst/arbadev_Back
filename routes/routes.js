@@ -12,10 +12,17 @@ import dotenv from 'dotenv';
 import { log } from 'console';
 import nodemailer from 'nodemailer';
 import transporter from '../email/transporter.js'
+import { getPeopleRelPerson, getVehiclesRelPerson } from '../functions.js';
+import { getPeopleRelVehicle, getVehiclesRelVehicle } from '../functions.js';
 
 dotenv.config();
 
 const router = express.Router();
+
+router.get('/related-people/:dni', getPeopleRelPerson);
+router.get('/related-vehicles/:dni', getVehiclesRelPerson);
+router.get('/related-people/:license_plate', getPeopleRelVehicle);
+router.get('/related-vehicles/:license_plate', getVehiclesRelVehicle);
 
 // * Middleware to authenticate the token
 export const authToken = (req, res, next) => {

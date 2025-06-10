@@ -48,6 +48,118 @@ export const show_vehicles = async () => {
 
 };
 
+// Obtiene las personas que coincien con una persona en incidencias
+export const getPeopleRelPerson = async (req, res) => {
+  const { dni } = req.params;
+
+  const query = `
+    SELECT 
+      p.dni,
+      p.first_name,
+      p.last_name1,
+      p.last_name2,
+      ip.incident_code
+    FROM incidents_people ip
+    JOIN people p ON ip.person_dni = p.dni
+    WHERE ip.incident_code IN (
+      SELECT incident_code
+      FROM incidents_people
+      WHERE person_dni = $1
+    )
+    AND p.dni <> $1;
+  `;
+
+  try {
+    const result = await pool.query(query, [dni]);
+    res.status(200).json({ ok: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
+// Obtiene los vehiculos que coincien con una persona en incidenicas
+export const getVehiclesRelPerson = async (req, res) => {
+  const { dni } = req.params;
+
+  const query = `
+    SELECT 
+      v.license_plate,
+      v.brand,
+      v.model,
+      iv.incident_code
+    FROM incidents_vehicles iv
+    JOIN vehicles v ON iv.vehicle_license_plate = v.license_plate
+    WHERE iv.incident_code IN (
+      SELECT incident_code
+      FROM incidents_people
+      WHERE person_dni = $1
+    );
+  `;
+
+  try {
+    const result = await pool.query(query, [dni]);
+    res.status(200).json({ ok: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
+// Obtiene las personas que coincien con un vehiculo en incidencias
+export const getPeopleRelVehicle = async (req, res) => {
+  const { license_plate } = req.params;
+
+  const query = `
+    SELECT 
+      p.dni,
+      p.first_name,
+      p.last_name1,
+      p.last_name2,
+      ip.incident_code
+    FROM incidents_people ip
+    JOIN people p ON ip.person_dni = p.dni
+    WHERE ip.incident_code IN (
+      SELECT incident_code
+      FROM incidents_vehicles
+      WHERE vehicle_license_plate = $1
+    );
+  `;
+
+  try {
+    const result = await pool.query(query, [license_plate]);
+    res.status(200).json({ ok: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
+// Obtiene los vehiculos que coincien con un vehiculo en incidencias
+export const getVehiclesRelVehicle = async (req, res) => {
+  const { license_plate } = req.params;
+
+  const query = `
+    SELECT 
+      v.license_plate,
+      v.brand,
+      v.model,
+      iv.incident_code
+    FROM incidents_vehicles iv
+    JOIN vehicles v ON iv.vehicle_license_plate = v.license_plate
+    WHERE iv.incident_code IN (
+      SELECT incident_code
+      FROM incidents_vehicles
+      WHERE vehicle_license_plate = $1
+    )
+    AND v.license_plate <> $1;
+  `;
+
+  try {
+    const result = await pool.query(query, [license_plate]);
+    res.status(200).json({ ok: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
 
 /*
  * Añade un solo vehículo a la base de datos
