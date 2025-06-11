@@ -811,11 +811,13 @@ router.put('/users/:code', authToken, async (req, res) => {
   
 });
 //* Route to get user login state
-router.get('/users/loginstate', authToken, async (req, res) => {
+router.post('/users/loginstate', authToken, async (req, res) => {
   try{
-    const { code } = req; // Obtiene el código del usuario desde el token
-    const query = `select must_change_password from users where code = $1;`
-    const result = await pool.query(query, values);
+    const { code } = req.user;
+    console.log('Código del usuario:', code);
+
+    const query = `select * from users where code = $1`
+    const result = await pool.query(query, [code]);
     res.json({ ok: true, must_change_password: result.rows[0].must_change_password });
   } catch (error) {
     console.error('Error al obtener el estado de inicio de sesión del usuario:', error);
