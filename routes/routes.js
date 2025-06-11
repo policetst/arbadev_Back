@@ -14,6 +14,7 @@ import nodemailer from 'nodemailer';
 import transporter from '../email/transporter.js'
 import { getPeopleRelPerson, getVehiclesRelPerson } from '../functions.js';
 import { getPeopleRelVehicle, getVehiclesRelVehicle } from '../functions.js';
+import { getPersonIncidents, getVehicleIncidents } from '../functions.js';
 
 dotenv.config();
 
@@ -23,6 +24,8 @@ router.get('/related-people/:dni', getPeopleRelPerson);
 router.get('/related-vehicles/:dni', getVehiclesRelPerson);
 router.get('/related-people/:license_plate', getPeopleRelVehicle);
 router.get('/related-vehicles/:license_plate', getVehiclesRelVehicle);
+router.get('/incident-person/:dni', getPersonIncidents);
+router.get('/incident-vehicle/:license_plate', getVehicleIncidents);
 
 // * Middleware to authenticate the token
 export const authToken = (req, res, next) => {
