@@ -810,6 +810,18 @@ router.put('/users/:code', authToken, async (req, res) => {
   }
   
 });
+//* Route to get user login state
+router.get('/users/loginstate', authToken, async (req, res) => {
+  try{
+    const query = `select must_change_password from users where code = $1;`
+    const values = [req.code];
+    const result = await pool.query(query, values);
+    res.json({ ok: true, must_change_password: result.rows[0].must_change_password });
+  } catch (error) {
+    console.error('Error al obtener el estado de inicio de sesión del usuario:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener el estado de inicio de sesión del usuario' });
+  }
+});
 
 //* get all users
 router.get('/users', authToken, async (req, res) => {
