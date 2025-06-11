@@ -88,29 +88,21 @@ router.post('/login', async (req, res) => {
   console.log(username, password);
   
   try {
-    //* search the user in the database by code
     const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [username]);
-    
-    //* if the user is not found
     if (userResult.rows.length === 0) {
       return res.status(401).json({ ok: false, message: 'Credenciales inválidas' });
     }
     
     const user = userResult.rows[0];
-
-    //* check if the user is active
     if (user.status !== 'Active') {
       return res.status(401).json({ ok: false, message: 'Usuario inactivo' });
     }
     
-    //* check if the password is correct
     const validPassword = await bcrypt.compare(password, user.password);
-    
     if (!validPassword) {
       return res.status(401).json({ ok: false, message: 'Credenciales inválidas' });
     }
     
-    //* create the JWT token
     const token = jwt.sign({ 
       code: user.code,
       role: user.role 
@@ -122,7 +114,8 @@ router.post('/login', async (req, res) => {
       user: {
         code: user.code,
         email: user.email,
-        role: user.role
+        role: user.role,
+        must_change_password: user.must_change_password // <-- añade esto
       }
     });
   } catch (error) {
@@ -130,6 +123,7 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error en el servidor' });
   }
 });
+
 
 // * Route to upload image
 router.post('/upload', authToken, upload.single('file'), async (req, res) => {
@@ -619,23 +613,18 @@ router.post('/users/resetpassword', async (req, res) => {
   if (!email) return res.status(400).json({ ok: false, message: 'Email requerido' });
 
   try {
-    // Busca el usuario
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) {
       return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
     }
     const user = result.rows[0];
 
-    // Genera nueva password aleatoria segura (ej: 10 caracteres alfanuméricos)
     const newPassword = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0,10);
-
-    // Hashea la nueva password
     const hash = await bcrypt.hash(newPassword, 10);
 
-    // Guarda la nueva password
-    await pool.query('UPDATE users SET password=$1 WHERE code=$2', [hash, user.code]);
+    // Cambia aquí: pon el flag a true
+    await pool.query('UPDATE users SET password=$1, must_change_password=true WHERE code=$2', [hash, user.code]);
 
-    // Envía el email con la nueva password usando nodemailer
     await sendPasswordEmail(user.email, newPassword);
 
     return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
@@ -645,6 +634,34 @@ router.post('/users/resetpassword', async (req, res) => {
     return res.status(500).json({ ok: false, message: 'Error en el reseteo de contraseña.' });
   }
 });
+
+router.post('/users/force-reset-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ ok: false, message: 'Email requerido' });
+
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+    }
+    const user = result.rows[0];
+
+    const newPassword = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    // Cambia aquí: pon el flag a true
+    await pool.query('UPDATE users SET password = $1, must_change_password = true WHERE email = $2', [hash, user.email]);
+
+    await sendPasswordEmail(user.email, newPassword);
+
+    return res.json({ ok: true, message: 'Si el usuario existe, recibirá un email con la nueva contraseña.' });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, message: 'Error en el reseteo de contraseña.' });
+  }
+});
+
 
 router.post('/users/force-reset-password', async (req, res) => {
   const { email } = req.body;
@@ -813,19 +830,22 @@ router.put('/users/:code/password', authToken, async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Comprobar que el usuario existe
     const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
     }
 
+    // Hashea la password aquí antes de guardarla
+    const hash = await bcrypt.hash(password, 10);
+
+    // Importante: pone must_change_password a false
     const query = `
       UPDATE users 
-      SET email = $1, password = $2 
+      SET email = $1, password = $2, must_change_password = false
       WHERE code = $3 
       RETURNING *;
     `;
-    const values = [email, password, code];
+    const values = [email, hash, code];
 
     const result = await pool.query(query, values);
 
@@ -835,6 +855,7 @@ router.put('/users/:code/password', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al actualizar la contraseña del usuario' });
   }
 });
+
 //*route to create a new user
 router.post('/users', authToken, async (req, res) => {
   const { code, email, password, role, status } = req.body;
