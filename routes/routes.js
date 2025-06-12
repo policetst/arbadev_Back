@@ -20,7 +20,7 @@ dotenv.config();
 const router = express.Router();
 
 router.get('/related-people/:dni', getPeopleRelPerson);
-router.get('/related-vehicles/:dni', getVehiclesRelPerson);
+router.get('/related-vehiclesp/:dni', getVehiclesRelPerson);
 router.get('/related-people/:license_plate', getPeopleRelVehicle);
 router.get('/related-vehicles/:license_plate', getVehiclesRelVehicle);
 
