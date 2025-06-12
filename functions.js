@@ -137,7 +137,7 @@ export const getVehiclesRelVehicle = async (req, res) => {
   const { license_plate } = req.params;
 
   const query = `
-    SELECT 
+    SELECT
       v.license_plate,
       v.brand,
       v.model,
