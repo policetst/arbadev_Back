@@ -52,7 +52,7 @@ export const show_vehicles = async () => {
 // Obtiene las incidencias de las personas 
 export const getPersonIncidents = async (req, res) => {
   const { dni } = req.params;
-  console.log('DNI recibido en la petición:', dni);
+  console.log('DNI recibido:', dni);
   const query = `
   SELECT 
     i.code AS incident_code,
@@ -77,7 +77,7 @@ export const getPersonIncidents = async (req, res) => {
 // Obtiene las incidencias de los vehiculos 
 export const getVehicleIncidents = async (req, res) => {
   const { license_plate } = req.params;
-  console.log('Matricula recibida en la petición:', license_plate);
+  console.log('Matricula recibida:', license_plate);
   const query = `
   SELECT 
     i.code AS incident_code,
