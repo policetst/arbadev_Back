@@ -972,6 +972,25 @@ router.get('/incident-vehicle/:license_plate', async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al obtener incidencias por vehículo' });
   }
 });
+//* route to get incidents of a person
+app.get('/incident-person/:dni', async (req, res) => {
+  const { dni } = req.params;
+  try {
+    const [rows] = await connection.execute(
+      `SELECT ip.incident_code, i.description, i.date
+       FROM incident_person ip
+       JOIN incidents i ON ip.incident_code = i.incident_code
+       WHERE ip.dni = ?`,
+      [dni]
+    );
+
+    res.json({ ok: true, data: rows });
+  } catch (error) {
+    console.error('Error al obtener incidencias relacionadas:', error);
+    res.status(500).json({ ok: false, message: 'Error del servidor' });
+  }
+});
+
 
 
 export default router;
