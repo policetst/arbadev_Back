@@ -946,4 +946,32 @@ router.put('/incidents/:code/teammate/:teammateCode', authToken, async (req, res
   }
 });
 
+//* Route to get incidents of a vehicle
+// * Route to get incidents related to a vehicle (inline)
+router.get('/incident-vehicle/:license_plate', async (req, res) => {
+  const { license_plate } = req.params;
+
+  try {
+    const query = `
+      SELECT 
+        i.code AS incident_code,
+        p.dni,
+        p.first_name,
+        p.last_name1
+      FROM incidents i
+      JOIN incidents_vehicles iv ON i.code = iv.incident_code
+      LEFT JOIN incidents_people ip ON ip.incident_code = i.code
+      LEFT JOIN people p ON p.dni = ip.person_dni
+      WHERE iv.vehicle_license_plate = $1
+    `;
+    const result = await pool.query(query, [license_plate]);
+
+    res.status(200).json({ ok: true, data: result.rows });
+  } catch (err) {
+    console.error('Error al obtener incidencias por vehículo:', err);
+    res.status(500).json({ ok: false, message: 'Error al obtener incidencias por vehículo' });
+  }
+});
+
+
 export default router;
