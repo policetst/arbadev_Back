@@ -50,6 +50,9 @@ router.post('/imagesd', async (req, res) => {
   
   try {
     const { url } = req.body;
+    if( !url) {
+      return res.status(400).json({ ok: false, message: 'URL de imagen no proporcionada' });
+    }
     console.log('URL recibida:', url);
 console.log('Archivo extraído:', path.basename(url));
 console.log('Ruta final:', path.posix.join('/mnt/data/uploads', path.basename(url)));
