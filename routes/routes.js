@@ -847,7 +847,6 @@ router.put('/users/:code/passwordd', authToken, async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    pool.query('BEGIN');
     const userResult = await pool.query('SELECT * FROM users WHERE code = $1', [code]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
@@ -864,13 +863,11 @@ router.put('/users/:code/passwordd', authToken, async (req, res) => {
       RETURNING *;
     `;
     const values = [email, hash, code];
-pool.query('COMMIT');
     const result = await pool.query(query, values);
 
 
     res.json({ ok: true, user: result.rows[0] });
   } catch (error) {
-    await pool.query('ROLLBACK');
     console.error('Error al actualizar la contraseña del usuario:', error);
     res.status(500).json({ ok: false, message: 'Error al actualizar la contraseña del usuario' });
   }
