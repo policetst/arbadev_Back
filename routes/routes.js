@@ -46,7 +46,7 @@ export const authToken = (req, res, next) => {
 
 
 //* delete images from server
-router.post('/imagesd', async (req, res) => {
+router.post('/imagesd', authToken, async (req, res) => {
   
   try {
     const { url } = req.body;
@@ -458,7 +458,7 @@ router.get('/people/:dni', async (req, res) => {
 
 
 // * Route to upgrade a person
-router.put('/people/:dni', async (req, res) => {
+router.put('/people/:dni',authToken, async (req, res) => {
   const { dni } = req.params;
   const { first_name, last_name1, last_name2, phone_number } = req.body;
 
@@ -483,7 +483,7 @@ router.put('/people/:dni', async (req, res) => {
 });
 
 //* Route to show vehicles   
-router.get('/vehicles', async (req, res) => {
+router.get('/vehicles',authToken, async (req, res) => {
   try {
     const vehicles = await show_vehicles();
     res.json({ ok: true, data: vehicles });
@@ -495,7 +495,7 @@ router.get('/vehicles', async (req, res) => {
 
 
 // * Route to get vehicle
-router.get('/vehicles/:license_plate', async (req, res) => {
+router.get('/vehicles/:license_plate', authToken, async (req, res) => {
   const { license_plate } = req.params;
   try {
     const query = 'SELECT * FROM vehicles WHERE license_plate = $1';
@@ -513,7 +513,7 @@ router.get('/vehicles/:license_plate', async (req, res) => {
 
 
 // * Route to upgrade a vehicle
-router.put('/vehicles/:license_plate', async (req, res) => {
+router.put('/vehicles/:license_plate', authToken, async (req, res) => {
   const { license_plate } = req.params;
   const { brand, model, color } = req.body;
 
