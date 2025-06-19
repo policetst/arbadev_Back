@@ -428,7 +428,7 @@ router.get('/incidents/:code/peoplecount', authToken, async (req, res) => {
 
 
 //* Route to show people
-router.get('/people', async (req, res) => {
+router.get('/people', authToken, async (req, res) => {
   try {
     const query = 'SELECT * FROM people';
     const result = await pool.query(query);
