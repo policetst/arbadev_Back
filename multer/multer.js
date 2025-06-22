@@ -7,7 +7,7 @@ const tempPath = '/mnt/data/temp';
 //! crear las carpetas si no existen con los permisos necesarios
 [persistentPath, tempPath].forEach(dir => {
   if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true, mode: 0o755 });
+    // fs.mkdirSync(dir, { recursive: true, mode: 0o755 });
   } else {
     try {
       fs.chmodSync(dir, 0o755);
