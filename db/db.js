@@ -6,7 +6,7 @@ const { Pool } = pkg;
 dotenv.config();
 // * create
 const pool = new Pool({
-  connectionString: `postgresql://arbadev:${process.env.DB_PASSWORD}@${process.env.DB_URL}`,
+  connectionString: `postgresql://arbadev_bbdd_test_user:${process.env.DB_PASSWORD}@${process.env.DB_URL}`,
   ssl: { rejectUnauthorized: false }, // * para evitar el error del certificado no seguro
 });
 
