@@ -366,7 +366,30 @@ router.put('/incidents/:code/', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al actualizar la incidencia' });
   }
 });
+// * Route to change the brigade field of an incident
+router.put('/incidents/:code/brigade_field', authToken, async (req, res) => {
+  const { code } = req.params;
+  const { brigade_field } = req.body;
 
+  try {
+    await pool.query('BEGIN');
+
+    const query = `
+      UPDATE incidents
+      SET brigade_field = $1
+      WHERE code = $2
+    `;
+    await pool.query(query, [brigade_field, code]);
+
+    await pool.query('COMMIT');
+    res.json({ ok: true, message: 'Campo de brigada actualizado correctamente' });
+
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error('Error al actualizar el campo de brigada:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar el campo de brigada' });
+  }
+});
 
 // * Route to get an incident with details (people, vehicles)
 router.get('/incidents/:code/details', authToken, async (req, res) => {
@@ -993,7 +1016,30 @@ router.get('/incident-person/:dni', async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error del servidor' });
   }
 });
+// * Route to change brigade_field status
+router.put('/incidents/:code/brigade_field', authToken, async (req, res) => {
+  const { code } = req.params;
+  const { brigade_field } = req.body;
 
+  try {
+    await pool.query('BEGIN');
+
+    const query = `
+      UPDATE incidents
+      SET brigade_field = $1
+      WHERE code = $2;
+    `;
+    await pool.query(query, [brigade_field, code]);
+
+    await pool.query('COMMIT');
+    res.json({ ok: true, message: 'Estado de brigade_field actualizado correctamente' });
+
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error('Error al actualizar el estado de brigade_field:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar el estado de brigade_field' });
+  }
+});
 
 
 
