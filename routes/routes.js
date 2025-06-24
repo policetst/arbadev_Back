@@ -372,7 +372,7 @@ router.put('/incidents/:code/', authToken, async (req, res) => {
 router.get('/incidents/:code/details', authToken, async (req, res) => {
   const { code } = req.params;
 
-  try {
+  try {//
     // Get incident basic info
     const incidentResult = await pool.query('SELECT * FROM incidents WHERE code = $1', [code]);
     
