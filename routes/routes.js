@@ -366,7 +366,7 @@ router.put('/incidents/:code/', authToken, async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error al actualizar la incidencia' });
   }
 });
-// * Route to change the brigade field of an incident
+// * Route to change brigade_field status
 router.put('/incidents/:code/brigade_field', authToken, async (req, res) => {
   const { code } = req.params;
   const { brigade_field } = req.body;
@@ -377,17 +377,17 @@ router.put('/incidents/:code/brigade_field', authToken, async (req, res) => {
     const query = `
       UPDATE incidents
       SET brigade_field = $1
-      WHERE code = $2
+      WHERE code = $2;
     `;
     await pool.query(query, [brigade_field, code]);
 
     await pool.query('COMMIT');
-    res.json({ ok: true, message: 'Campo de brigada actualizado correctamente' });
+    res.json({ ok: true, message: 'Estado de brigade_field actualizado correctamente' });
 
   } catch (error) {
     await pool.query('ROLLBACK');
-    console.error('Error al actualizar el campo de brigada:', error);
-    res.status(500).json({ ok: false, message: 'Error al actualizar el campo de brigada' });
+    console.error('Error al actualizar el estado de brigade_field:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar el estado de brigade_field' });
   }
 });
 
@@ -395,7 +395,7 @@ router.put('/incidents/:code/brigade_field', authToken, async (req, res) => {
 router.get('/incidents/:code/details', authToken, async (req, res) => {
   const { code } = req.params;
 
-  try {//
+  try {
     // Get incident basic info
     const incidentResult = await pool.query('SELECT * FROM incidents WHERE code = $1', [code]);
     
@@ -1016,31 +1016,549 @@ router.get('/incident-person/:dni', async (req, res) => {
     res.status(500).json({ ok: false, message: 'Error del servidor' });
   }
 });
-// * Route to change brigade_field status
-router.put('/incidents/:code/brigade_field', authToken, async (req, res) => {
-  const { code } = req.params;
-  const { brigade_field } = req.body;
+
+
+// ==================== RUTAS PARA ATESTADOS ====================
+
+// * Route to get all atestados
+router.get('/atestados', authToken, async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        a.*,
+        COUNT(d.id) as total_diligencias
+      FROM atestados a
+      LEFT JOIN diligencias d ON a.id = d.atestado_id
+      GROUP BY a.id
+      ORDER BY a.fecha DESC
+    `;
+    const result = await pool.query(query);
+    res.json({ ok: true, atestados: result.rows });
+  } catch (error) {
+    console.error('Error al obtener atestados:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener atestados' });
+  }
+});
+
+// * Route to create a new atestado
+router.post('/atestados', authToken, async (req, res) => {
+  const { numero, fecha, descripcion, estado = 'activo' } = req.body;
+
+  if (!numero || !fecha) {
+    return res.status(400).json({ ok: false, message: 'Número y fecha son obligatorios' });
+  }
+
+  try {
+    const query = `
+      INSERT INTO atestados (numero, fecha, descripcion, estado)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `;
+    const values = [numero, fecha, descripcion, estado];
+    const result = await pool.query(query, values);
+
+    res.status(201).json({
+      ok: true,
+      message: 'Atestado creado correctamente',
+      atestado: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error al crear atestado:', error);
+    if (error.code === '23505') { // Unique violation
+      res.status(400).json({ ok: false, message: 'Ya existe un atestado con ese número' });
+    } else {
+      res.status(500).json({ ok: false, message: 'Error al crear atestado' });
+    }
+  }
+});
+
+// * Route to get a specific atestado with its diligencias
+router.get('/atestados/:id', authToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Get atestado basic info
+    const atestadoResult = await pool.query('SELECT * FROM atestados WHERE id = $1', [id]);
+    
+    if (atestadoResult.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Atestado no encontrado' });
+    }
+
+    // Get diligencias with plantilla info
+    const diligenciasResult = await pool.query(`
+      SELECT 
+        d.*,
+        p.name as plantilla_nombre,
+        p.content as plantilla_content,
+        json_agg(
+          json_build_object(
+            'variable', dv.variable,
+            'valor', dv.valor
+          )
+        ) as valores
+      FROM diligencias d
+      JOIN plantillas p ON d.plantilla_id = p.id
+      LEFT JOIN diligencia_valores dv ON d.id = dv.diligencia_id
+      WHERE d.atestado_id = $1
+      GROUP BY d.id, p.name, p.content
+      ORDER BY d.created_at
+    `, [id]);
+
+    res.json({
+      ok: true,
+      atestado: atestadoResult.rows[0],
+      diligencias: diligenciasResult.rows
+    });
+  } catch (error) {
+    console.error('Error al obtener atestado:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener atestado' });
+  }
+});
+
+// * Route to update an atestado
+router.put('/atestados/:id', authToken, async (req, res) => {
+  const { id } = req.params;
+  const { numero, fecha, descripcion, estado } = req.body;
+
+  try {
+    const query = `
+      UPDATE atestados 
+      SET numero = $1, fecha = $2, descripcion = $3, estado = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      RETURNING *
+    `;
+    const values = [numero, fecha, descripcion, estado, id];
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Atestado no encontrado' });
+    }
+
+    res.json({
+      ok: true,
+      message: 'Atestado actualizado correctamente',
+      atestado: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error al actualizar atestado:', error);
+    if (error.code === '23505') {
+      res.status(400).json({ ok: false, message: 'Ya existe un atestado con ese número' });
+    } else {
+      res.status(500).json({ ok: false, message: 'Error al actualizar atestado' });
+    }
+  }
+});
+
+// * Route to delete an atestado
+router.delete('/atestados/:id', authToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query('DELETE FROM atestados WHERE id = $1 RETURNING *', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Atestado no encontrado' });
+    }
+
+    res.json({ ok: true, message: 'Atestado eliminado correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar atestado:', error);
+    res.status(500).json({ ok: false, message: 'Error al eliminar atestado' });
+  }
+});
+
+// ==================== RUTAS PARA PLANTILLAS ====================
+
+// * Route to get all plantillas
+router.get('/plantillas', authToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        id,
+        name,
+        description,
+        content,
+        variables,
+        created_at,
+        updated_at
+      FROM plantillas 
+      ORDER BY name
+    `);
+    
+    // Parse variables JSON and add variables array for components
+    const plantillas = result.rows.map(plantilla => ({
+      ...plantilla,
+      variables: plantilla.variables || []
+    }));
+
+    res.json({ ok: true, plantillas });
+  } catch (error) {
+    console.error('Error al obtener plantillas:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener plantillas' });
+  }
+});
+
+// * Route to create a new plantilla
+router.post('/plantillas', authToken, async (req, res) => {
+  const { name, description, content } = req.body;
+
+  if (!name || !content) {
+    return res.status(400).json({ ok: false, message: 'Nombre y contenido son obligatorios' });
+  }
+
+  try {
+    // Extract variables from content
+    const variableRegex = /\{([^}]+)\}/g;
+    const variables = [];
+    let match;
+    
+    while ((match = variableRegex.exec(content)) !== null) {
+      if (!variables.includes(match[1])) {
+        variables.push(match[1]);
+      }
+    }
+
+    const query = `
+      INSERT INTO plantillas (name, description, content, variables)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `;
+    const values = [name, description, content, JSON.stringify(variables)];
+    const result = await pool.query(query, values);
+
+    const plantilla = {
+      ...result.rows[0],
+      variables: variables
+    };
+
+    res.status(201).json({
+      ok: true,
+      message: 'Plantilla creada correctamente',
+      plantilla
+    });
+  } catch (error) {
+    console.error('Error al crear plantilla:', error);
+    res.status(500).json({ ok: false, message: 'Error al crear plantilla' });
+  }
+});
+
+// * Route to get a specific plantilla
+router.get('/plantillas/:id', authToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query('SELECT * FROM plantillas WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Plantilla no encontrada' });
+    }
+
+    const plantilla = {
+      ...result.rows[0],
+      variables: result.rows[0].variables || []
+    };
+
+    res.json({ ok: true, plantilla });
+  } catch (error) {
+    console.error('Error al obtener plantilla:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener plantilla' });
+  }
+});
+
+// * Route to update a plantilla
+router.put('/plantillas/:id', authToken, async (req, res) => {
+  const { id } = req.params;
+  const { name, description, content } = req.body;
+
+  try {
+    // Extract variables from content
+    const variableRegex = /\{([^}]+)\}/g;
+    const variables = [];
+    let match;
+    
+    while ((match = variableRegex.exec(content)) !== null) {
+      if (!variables.includes(match[1])) {
+        variables.push(match[1]);
+      }
+    }
+
+    const query = `
+      UPDATE plantillas 
+      SET name = $1, description = $2, content = $3, variables = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      RETURNING *
+    `;
+    const values = [name, description, content, JSON.stringify(variables), id];
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Plantilla no encontrada' });
+    }
+
+    const plantilla = {
+      ...result.rows[0],
+      variables: variables
+    };
+
+    res.json({
+      ok: true,
+      message: 'Plantilla actualizada correctamente',
+      plantilla
+    });
+  } catch (error) {
+    console.error('Error al actualizar plantilla:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar plantilla' });
+  }
+});
+
+// * Route to delete a plantilla
+router.delete('/plantillas/:id', authToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Check if plantilla is being used in diligencias
+    const usageResult = await pool.query('SELECT COUNT(*) FROM diligencias WHERE plantilla_id = $1', [id]);
+    
+    if (parseInt(usageResult.rows[0].count) > 0) {
+      return res.status(400).json({ 
+        ok: false, 
+        message: 'No se puede eliminar la plantilla porque está siendo usada en diligencias' 
+      });
+    }
+
+    const result = await pool.query('DELETE FROM plantillas WHERE id = $1 RETURNING *', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Plantilla no encontrada' });
+    }
+
+    res.json({ ok: true, message: 'Plantilla eliminada correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar plantilla:', error);
+    res.status(500).json({ ok: false, message: 'Error al eliminar plantilla' });
+  }
+});
+
+// ==================== RUTAS PARA DILIGENCIAS ====================
+
+// * Route to get diligencias of an atestado
+router.get('/atestados/:id/diligencias', authToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(`
+      SELECT 
+        d.*,
+        p.name as plantilla_nombre,
+        p.content as plantilla_content,
+        json_agg(
+          json_build_object(
+            'variable', dv.variable,
+            'valor', dv.valor
+          )
+        ) as valores
+      FROM diligencias d
+      JOIN plantillas p ON d.plantilla_id = p.id
+      LEFT JOIN diligencia_valores dv ON d.id = dv.diligencia_id
+      WHERE d.atestado_id = $1
+      GROUP BY d.id, p.name, p.content
+      ORDER BY d.created_at
+    `, [id]);
+
+    res.json({ ok: true, diligencias: result.rows });
+  } catch (error) {
+    console.error('Error al obtener diligencias:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener diligencias' });
+  }
+});
+
+// * Route to create a new diligencia in an atestado
+router.post('/atestados/:id/diligencias', authToken, async (req, res) => {
+  const { id: atestadoId } = req.params;
+  const { templateId, values, previewText } = req.body;
+
+  if (!templateId || !Array.isArray(values)) {
+    return res.status(400).json({ ok: false, message: 'Template ID y valores son obligatorios' });
+  }
 
   try {
     await pool.query('BEGIN');
 
-    const query = `
-      UPDATE incidents
-      SET brigade_field = $1
-      WHERE code = $2;
+    // Verify atestado exists
+    const atestadoResult = await pool.query('SELECT id FROM atestados WHERE id = $1', [atestadoId]);
+    if (atestadoResult.rows.length === 0) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ ok: false, message: 'Atestado no encontrado' });
+    }
+
+    // Verify plantilla exists
+    const plantillaResult = await pool.query('SELECT id FROM plantillas WHERE id = $1', [templateId]);
+    if (plantillaResult.rows.length === 0) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ ok: false, message: 'Plantilla no encontrada' });
+    }
+
+    // Create diligencia
+    const diligenciaQuery = `
+      INSERT INTO diligencias (atestado_id, plantilla_id, texto_final)
+      VALUES ($1, $2, $3)
+      RETURNING *
     `;
-    await pool.query(query, [brigade_field, code]);
+    const diligenciaValues = [atestadoId, templateId, previewText];
+    const diligenciaResult = await pool.query(diligenciaQuery, diligenciaValues);
+    const diligenciaId = diligenciaResult.rows[0].id;
+
+    // Insert variable values
+    for (const { variable, value } of values) {
+      if (variable && value) {
+        await pool.query(
+          'INSERT INTO diligencia_valores (diligencia_id, variable, valor) VALUES ($1, $2, $3)',
+          [diligenciaId, variable, value]
+        );
+      }
+    }
 
     await pool.query('COMMIT');
-    res.json({ ok: true, message: 'Estado de brigade_field actualizado correctamente' });
 
+    res.status(201).json({
+      ok: true,
+      message: 'Diligencia creada correctamente',
+      diligencia: diligenciaResult.rows[0]
+    });
   } catch (error) {
     await pool.query('ROLLBACK');
-    console.error('Error al actualizar el estado de brigade_field:', error);
-    res.status(500).json({ ok: false, message: 'Error al actualizar el estado de brigade_field' });
+    console.error('Error al crear diligencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al crear diligencia' });
   }
 });
 
+// * Route to get a specific diligencia
+router.get('/diligencias/:id', authToken, async (req, res) => {
+  const { id } = req.params;
 
+  try {
+    const result = await pool.query(`
+      SELECT 
+        d.*,
+        p.name as plantilla_nombre,
+        p.content as plantilla_content,
+        p.variables as plantilla_variables,
+        json_agg(
+          json_build_object(
+            'variable', dv.variable,
+            'valor', dv.valor
+          )
+        ) as valores
+      FROM diligencias d
+      JOIN plantillas p ON d.plantilla_id = p.id
+      LEFT JOIN diligencia_valores dv ON d.id = dv.diligencia_id
+      WHERE d.id = $1
+      GROUP BY d.id, p.name, p.content, p.variables
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Diligencia no encontrada' });
+    }
+
+    const diligencia = {
+      ...result.rows[0],
+      plantilla_variables: result.rows[0].plantilla_variables || []
+    };
+
+    res.json({ ok: true, diligencia });
+  } catch (error) {
+    console.error('Error al obtener diligencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener diligencia' });
+  }
+});
+
+// * Route to update a diligencia
+router.put('/diligencias/:id', authToken, async (req, res) => {
+  const { id } = req.params;
+  const { values, previewText } = req.body;
+
+  if (!Array.isArray(values)) {
+    return res.status(400).json({ ok: false, message: 'Valores son obligatorios' });
+  }
+
+  try {
+    await pool.query('BEGIN');
+
+    // Update diligencia
+    const diligenciaQuery = `
+      UPDATE diligencias 
+      SET texto_final = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+    `;
+    const diligenciaResult = await pool.query(diligenciaQuery, [previewText, id]);
+
+    if (diligenciaResult.rows.length === 0) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ ok: false, message: 'Diligencia no encontrada' });
+    }
+
+    // Delete existing values
+    await pool.query('DELETE FROM diligencia_valores WHERE diligencia_id = $1', [id]);
+
+    // Insert new values
+    for (const { variable, value } of values) {
+      if (variable) {
+        await pool.query(
+          'INSERT INTO diligencia_valores (diligencia_id, variable, valor) VALUES ($1, $2, $3)',
+          [id, variable, value || '']
+        );
+      }
+    }
+
+    await pool.query('COMMIT');
+
+    res.json({
+      ok: true,
+      message: 'Diligencia actualizada correctamente',
+      diligencia: diligenciaResult.rows[0]
+    });
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error('Error al actualizar diligencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al actualizar diligencia' });
+  }
+});
+
+// * Route to delete a diligencia
+router.delete('/diligencias/:id', authToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query('DELETE FROM diligencias WHERE id = $1 RETURNING *', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'Diligencia no encontrada' });
+    }
+
+    res.json({ ok: true, message: 'Diligencia eliminada correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar diligencia:', error);
+    res.status(500).json({ ok: false, message: 'Error al eliminar diligencia' });
+  }
+});
+
+// * Route to get atestados count
+router.get('/atestados/stats/count', authToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN estado = 'activo' THEN 1 END) as activos,
+        COUNT(CASE WHEN estado = 'cerrado' THEN 1 END) as cerrados
+      FROM atestados
+    `);
+    
+    res.json({ ok: true, stats: result.rows[0] });
+  } catch (error) {
+    console.error('Error al obtener estadísticas de atestados:', error);
+    res.status(500).json({ ok: false, message: 'Error al obtener estadísticas' });
+  }
+});
 
 export default router;
