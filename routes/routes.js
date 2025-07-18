@@ -1086,22 +1086,25 @@ router.get('/atestados/:id', authToken, async (req, res) => {
 
     // Get diligencias with plantilla info
     const diligenciasResult = await pool.query(`
-      SELECT 
+      SELECT
         d.*,
         p.name as plantilla_nombre,
         p.content as plantilla_content,
-        json_agg(
-          json_build_object(
-            'variable', dv.variable,
-            'valor', dv.valor
-          )
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'variable', dv.variable,
+              'valor', dv.valor
+            )
+          ) FILTER (WHERE dv.variable IS NOT NULL),
+          '[]'::json
         ) as valores
       FROM diligencias d
       JOIN plantillas p ON d.plantilla_id = p.id
       LEFT JOIN diligencia_valores dv ON d.id = dv.diligencia_id
       WHERE d.atestado_id = $1
-      GROUP BY d.id, p.name, p.content
-      ORDER BY d.created_at
+      GROUP BY d.id, p.name, p.content, d.orden
+      ORDER BY d.orden, d.created_at
     `, [id]);
 
     res.json({
@@ -1347,21 +1350,24 @@ router.get('/atestados/:id/diligencias', authToken, async (req, res) => {
 
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         d.*,
         p.name as plantilla_nombre,
         p.content as plantilla_content,
-        json_agg(
-          json_build_object(
-            'variable', dv.variable,
-            'valor', dv.valor
-          )
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'variable', dv.variable,
+              'valor', dv.valor
+            )
+          ) FILTER (WHERE dv.variable IS NOT NULL),
+          '[]'::json
         ) as valores
       FROM diligencias d
       JOIN plantillas p ON d.plantilla_id = p.id
       LEFT JOIN diligencia_valores dv ON d.id = dv.diligencia_id
       WHERE d.atestado_id = $1
-      GROUP BY d.id, p.name, p.content
+      GROUP BY d.id, p.name, p.content, d.orden
       ORDER BY d.orden, d.created_at
     `, [id]);
 
@@ -1411,7 +1417,7 @@ router.post('/atestados/:id/diligencias', authToken, async (req, res) => {
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
-    const diligenciaValues = [atestadoId, templateId, previewText, nextOrder];
+    const diligenciaValues = [atestadoId, templateId, previewText || '', nextOrder];
     const diligenciaResult = await pool.query(diligenciaQuery, diligenciaValues);
     const diligenciaId = diligenciaResult.rows[0].id;
 
@@ -1435,7 +1441,10 @@ router.post('/atestados/:id/diligencias', authToken, async (req, res) => {
   } catch (error) {
     await pool.query('ROLLBACK');
     console.error('Error al crear diligencia:', error);
-    res.status(500).json({ ok: false, message: 'Error al crear diligencia' });
+    console.error('Error stack:', error.stack);
+    console.error('Request body:', req.body);
+    console.error('Request params:', req.params);
+    res.status(500).json({ ok: false, message: 'Error al crear diligencia: ' + error.message });
   }
 });
 
@@ -1450,11 +1459,14 @@ router.get('/diligencias/:id', authToken, async (req, res) => {
         p.name as plantilla_nombre,
         p.content as plantilla_content,
         p.variables as plantilla_variables,
-        json_agg(
-          json_build_object(
-            'variable', dv.variable,
-            'valor', dv.valor
-          )
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'variable', dv.variable,
+              'valor', dv.valor
+            )
+          ) FILTER (WHERE dv.variable IS NOT NULL),
+          '[]'::json
         ) as valores
       FROM diligencias d
       JOIN plantillas p ON d.plantilla_id = p.id
