@@ -1362,7 +1362,7 @@ router.get('/atestados/:id/diligencias', authToken, async (req, res) => {
       LEFT JOIN diligencia_valores dv ON d.id = dv.diligencia_id
       WHERE d.atestado_id = $1
       GROUP BY d.id, p.name, p.content
-      ORDER BY d.created_at
+      ORDER BY d.orden, d.created_at
     `, [id]);
 
     res.json({ ok: true, diligencias: result.rows });
@@ -1398,13 +1398,20 @@ router.post('/atestados/:id/diligencias', authToken, async (req, res) => {
       return res.status(404).json({ ok: false, message: 'Plantilla no encontrada' });
     }
 
+    // Get the next order number for this atestado
+    const orderResult = await pool.query(
+      'SELECT COALESCE(MAX(orden), 0) + 1 as next_order FROM diligencias WHERE atestado_id = $1',
+      [atestadoId]
+    );
+    const nextOrder = orderResult.rows[0].next_order;
+
     // Create diligencia
     const diligenciaQuery = `
-      INSERT INTO diligencias (atestado_id, plantilla_id, texto_final)
-      VALUES ($1, $2, $3)
+      INSERT INTO diligencias (atestado_id, plantilla_id, texto_final, orden)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
-    const diligenciaValues = [atestadoId, templateId, previewText];
+    const diligenciaValues = [atestadoId, templateId, previewText, nextOrder];
     const diligenciaResult = await pool.query(diligenciaQuery, diligenciaValues);
     const diligenciaId = diligenciaResult.rows[0].id;
 
@@ -1540,6 +1547,46 @@ router.delete('/diligencias/:id', authToken, async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar diligencia:', error);
     res.status(500).json({ ok: false, message: 'Error al eliminar diligencia' });
+  }
+});
+
+// * Route to reorder diligencias in an atestado
+router.put('/atestados/:id/diligencias/reorder', authToken, async (req, res) => {
+  const { id: atestadoId } = req.params;
+  const { diligenciasOrder } = req.body; // Array of { id, orden }
+
+  if (!Array.isArray(diligenciasOrder)) {
+    return res.status(400).json({ ok: false, message: 'diligenciasOrder debe ser un array' });
+  }
+
+  try {
+    await pool.query('BEGIN');
+
+    // Verify atestado exists
+    const atestadoResult = await pool.query('SELECT id FROM atestados WHERE id = $1', [atestadoId]);
+    if (atestadoResult.rows.length === 0) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ ok: false, message: 'Atestado no encontrado' });
+    }
+
+    // Update order for each diligencia
+    for (const { id: diligenciaId, orden } of diligenciasOrder) {
+      await pool.query(
+        'UPDATE diligencias SET orden = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND atestado_id = $3',
+        [orden, diligenciaId, atestadoId]
+      );
+    }
+
+    await pool.query('COMMIT');
+
+    res.json({
+      ok: true,
+      message: 'Orden de diligencias actualizado correctamente'
+    });
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error('Error al reordenar diligencias:', error);
+    res.status(500).json({ ok: false, message: 'Error al reordenar diligencias' });
   }
 });
 
