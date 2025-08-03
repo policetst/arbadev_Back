@@ -1383,7 +1383,15 @@ router.post('/atestados/:id/diligencias', authToken, async (req, res) => {
   const { id: atestadoId } = req.params;
   const { templateId, values, previewText } = req.body;
 
+  // Debug logs
+  console.log('🔍 DEBUG - Creando diligencia:');
+  console.log('📋 Body completo:', JSON.stringify(req.body, null, 2));
+  console.log('🆔 templateId:', templateId, 'tipo:', typeof templateId);
+  console.log('📝 values:', values, 'es array:', Array.isArray(values));
+  console.log('📄 previewText:', previewText);
+
   if (!templateId || !Array.isArray(values)) {
+    console.log('❌ Validación fallida - templateId:', !!templateId, 'values es array:', Array.isArray(values));
     return res.status(400).json({ ok: false, message: 'Template ID y valores son obligatorios' });
   }
 
