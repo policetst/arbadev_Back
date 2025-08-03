@@ -1575,7 +1575,14 @@ router.put('/atestados/:id/diligencias/reorder', authToken, async (req, res) => 
   const { id: atestadoId } = req.params;
   const { diligenciasOrder } = req.body; // Array of { id, orden }
 
+  console.log('🔍 DEBUG Backend - Reordenando diligencias:');
+  console.log('🆔 atestadoId:', atestadoId, 'tipo:', typeof atestadoId);
+  console.log('📋 req.body completo:', JSON.stringify(req.body, null, 2));
+  console.log('📊 diligenciasOrder:', diligenciasOrder, 'es array:', Array.isArray(diligenciasOrder));
+  console.log('📏 Longitud del array:', diligenciasOrder ? diligenciasOrder.length : 'undefined');
+
   if (!Array.isArray(diligenciasOrder)) {
+    console.log('❌ Error: diligenciasOrder no es un array');
     return res.status(400).json({ ok: false, message: 'diligenciasOrder debe ser un array' });
   }
 
