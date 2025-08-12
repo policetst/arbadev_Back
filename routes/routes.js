@@ -1379,7 +1379,7 @@ router.get('/atestados/:id/diligencias', authToken, async (req, res) => {
 });
 
 // * Route to reorder diligencias in an atestado (DEBE IR ANTES DEL POST)
-router.put('/atestados/:id/diligencias/reorder', authToken, async (req, res) => {
+router.put('/atestados/:id/reorder-diligencias', authToken, async (req, res) => {
   const { id: atestadoId } = req.params;
   const { diligenciasOrder } = req.body; // Array of { id, orden }
 
@@ -1691,126 +1691,7 @@ router.delete('/diligencias/:id', authToken, async (req, res) => {
   }
 });
 
-// * Route to reorder diligencias in an atestado
-router.put('/atestados/:id/diligencias/reorder', authToken, async (req, res) => {
-  const { id: atestadoId } = req.params;
-  const { diligenciasOrder } = req.body; // Array of { id, orden }
 
-  console.log('🔍 DEBUG Backend - Reordenando diligencias:');
-  console.log('🆔 atestadoId:', atestadoId, 'tipo:', typeof atestadoId);
-  console.log('📋 req.body completo:', JSON.stringify(req.body, null, 2));
-  console.log('📊 diligenciasOrder:', diligenciasOrder, 'es array:', Array.isArray(diligenciasOrder));
-  console.log('📏 Longitud del array:', diligenciasOrder ? diligenciasOrder.length : 'undefined');
-
-  if (!Array.isArray(diligenciasOrder)) {
-    console.log('❌ Error: diligenciasOrder no es un array');
-    return res.status(400).json({ ok: false, message: 'diligenciasOrder debe ser un array' });
-  }
-
-  if (diligenciasOrder.length === 0) {
-    console.log('❌ Error: diligenciasOrder está vacío');
-    return res.status(400).json({ ok: false, message: 'diligenciasOrder no puede estar vacío' });
-  }
-
-  // Validar estructura de cada elemento
-  for (let i = 0; i < diligenciasOrder.length; i++) {
-    const item = diligenciasOrder[i];
-    if (!item || typeof item.id === 'undefined' || typeof item.orden === 'undefined') {
-      console.log(`❌ Error: Elemento ${i} inválido:`, item);
-      return res.status(400).json({
-        ok: false,
-        message: `Elemento ${i} debe tener propiedades 'id' y 'orden'`
-      });
-    }
-    if (isNaN(parseInt(item.id)) || isNaN(parseInt(item.orden))) {
-      console.log(`❌ Error: Elemento ${i} con valores no numéricos:`, item);
-      return res.status(400).json({
-        ok: false,
-        message: `Elemento ${i}: 'id' y 'orden' deben ser números`
-      });
-    }
-  }
-
-  try {
-    await pool.query('BEGIN');
-    console.log('🚀 Iniciando transacción...');
-
-    // Verify atestado exists
-    const atestadoResult = await pool.query('SELECT id FROM atestados WHERE id = $1', [atestadoId]);
-    if (atestadoResult.rows.length === 0) {
-      await pool.query('ROLLBACK');
-      console.log('❌ Atestado no encontrado:', atestadoId);
-      return res.status(404).json({ ok: false, message: 'Atestado no encontrado' });
-    }
-    console.log('✅ Atestado encontrado:', atestadoId);
-
-    // Verificar que todas las diligencias pertenecen al atestado
-    const diligenciaIds = diligenciasOrder.map(item => item.id);
-    const existingDiligencias = await pool.query(
-      'SELECT id FROM diligencias WHERE id = ANY($1) AND atestado_id = $2',
-      [diligenciaIds, atestadoId]
-    );
-
-    if (existingDiligencias.rows.length !== diligenciasOrder.length) {
-      await pool.query('ROLLBACK');
-      console.log('❌ Algunas diligencias no pertenecen al atestado o no existen');
-      console.log('Esperadas:', diligenciaIds);
-      console.log('Encontradas:', existingDiligencias.rows.map(row => row.id));
-      return res.status(400).json({
-        ok: false,
-        message: 'Algunas diligencias no pertenecen al atestado especificado'
-      });
-    }
-    console.log('✅ Todas las diligencias pertenecen al atestado');
-
-    // Update order for each diligencia
-    let updatedCount = 0;
-    for (const { id: diligenciaId, orden } of diligenciasOrder) {
-      console.log(`🔄 Actualizando diligencia ${diligenciaId} con orden ${orden}`);
-      const updateResult = await pool.query(
-        'UPDATE diligencias SET orden = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND atestado_id = $3',
-        [orden, diligenciaId, atestadoId]
-      );
-
-      if (updateResult.rowCount === 0) {
-        console.log(`❌ No se pudo actualizar diligencia ${diligenciaId}`);
-        await pool.query('ROLLBACK');
-        return res.status(400).json({
-          ok: false,
-          message: `No se pudo actualizar la diligencia ${diligenciaId}`
-        });
-      }
-      updatedCount++;
-      console.log(`✅ Diligencia ${diligenciaId} actualizada correctamente`);
-    }
-
-    await pool.query('COMMIT');
-    console.log(`🎉 Transacción completada. ${updatedCount} diligencias actualizadas`);
-
-    // Verificar el resultado final
-    const finalResult = await pool.query(
-      'SELECT id, orden FROM diligencias WHERE atestado_id = $1 ORDER BY orden',
-      [atestadoId]
-    );
-    console.log('📋 Orden final:', finalResult.rows);
-
-    res.json({
-      ok: true,
-      message: 'Orden de diligencias actualizado correctamente',
-      updatedCount,
-      finalOrder: finalResult.rows
-    });
-  } catch (error) {
-    await pool.query('ROLLBACK');
-    console.error('❌ Error al reordenar diligencias:', error);
-    console.error('Stack trace:', error.stack);
-    res.status(500).json({
-      ok: false,
-      message: 'Error al reordenar diligencias',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
 
 // * Route to get atestados count
 router.get('/atestados/stats/count', authToken, async (req, res) => {
