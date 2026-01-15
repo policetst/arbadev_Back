@@ -212,15 +212,50 @@ CONTEXTO DEL SISTEMA:
         }
       }
 
-      // Si pregunta por incidencias específicas
-      if (lowerQuery.includes('incidencia') || lowerQuery.includes('caso') || lowerQuery.includes('denuncia')) {
-        const incidents = await pool.query(`
+      // Si pregunta por incidencias específicas o tipos específicos
+      if (lowerQuery.includes('incidencia') || lowerQuery.includes('caso') || lowerQuery.includes('denuncia') ||
+          lowerQuery.includes('violencia') || lowerQuery.includes('género') || lowerQuery.includes('genero') ||
+          lowerQuery.includes('robo') || lowerQuery.includes('hurto') || lowerQuery.includes('agresión') ||
+          lowerQuery.includes('agresion') || lowerQuery.includes('maltrato')) {
+        
+        // Buscar palabras clave en el query para filtrar por tipo o descripción
+        const keywords = [];
+        const keywordMap = {
+          'violencia': ['violencia', 'agresión', 'maltrato'],
+          'género': ['género', 'genero', 'machista', 'sexista'],
+          'robo': ['robo', 'hurto', 'sustracción'],
+          'tráfico': ['tráfico', 'trafico', 'accidente', 'circulación'],
+          'droga': ['droga', 'estupefaciente', 'narcótico']
+        };
+        
+        for (const [key, synonyms] of Object.entries(keywordMap)) {
+          if (synonyms.some(word => lowerQuery.includes(word))) {
+            keywords.push(...synonyms);
+          }
+        }
+        
+        let incidentsQuery = `
           SELECT code, status, location, type, description, creation_date, closure_date
           FROM incidents
-          ORDER BY creation_date DESC
-          LIMIT 30
-        `);
-        additionalData.incidencias = incidents.rows;
+        `;
+        
+        if (keywords.length > 0) {
+          // Buscar en tipo o descripción
+          const conditions = keywords.map((_, idx) => 
+            `(LOWER(type) LIKE LOWER($${idx + 1}) OR LOWER(description) LIKE LOWER($${idx + 1}))`
+          ).join(' OR ');
+          incidentsQuery += ` WHERE ${conditions}`;
+          const searchTerms = keywords.map(k => `%${k}%`);
+          incidentsQuery += ` ORDER BY creation_date DESC LIMIT 50`;
+          
+          const incidents = await pool.query(incidentsQuery, searchTerms);
+          additionalData.incidencias = incidents.rows;
+        } else {
+          // Consulta general
+          incidentsQuery += ` ORDER BY creation_date DESC LIMIT 30`;
+          const incidents = await pool.query(incidentsQuery);
+          additionalData.incidencias = incidents.rows;
+        }
       }
 
       // Si pregunta por atestados
