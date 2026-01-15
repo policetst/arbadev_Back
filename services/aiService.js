@@ -133,26 +133,83 @@ CONTEXTO DEL SISTEMA:
     const additionalData = {};
 
     try {
-      // Si pregunta por personas específicas
-      if (lowerQuery.includes('persona') || lowerQuery.includes('gente') || lowerQuery.includes('ciudadano')) {
-        const people = await pool.query(`
-          SELECT dni, first_name, last_name1, last_name2, phone_number
+      // Buscar nombres propios en la consulta (palabras que empiezan con mayúscula)
+      const nameMatches = query.match(/\b[A-ZÑÁÉÍÓÚ][a-zñáéíóúü]+(?:\s+[A-ZÑÁÉÍÓÚ][a-zñáéíóúü]+)*/g);
+      
+      // Si pregunta por personas específicas o menciona nombres
+      if (lowerQuery.includes('persona') || lowerQuery.includes('gente') || lowerQuery.includes('ciudadano') || nameMatches) {
+        let peopleQuery = `
+          SELECT dni, first_name, last_name1, last_name2, phone_number, address
           FROM people
-          ORDER BY last_name1, first_name
-          LIMIT 50
-        `);
-        additionalData.personas = people.rows;
+        `;
+        
+        // Si hay nombres específicos, buscar por ellos
+        if (nameMatches && nameMatches.length > 0) {
+          const searchTerms = nameMatches.map(name => `%${name}%`);
+          peopleQuery += ` WHERE `;
+          peopleQuery += searchTerms.map((_, idx) => 
+            `(LOWER(first_name) LIKE LOWER($${idx + 1}) OR LOWER(last_name1) LIKE LOWER($${idx + 1}) OR LOWER(last_name2) LIKE LOWER($${idx + 1}))`
+          ).join(' OR ');
+          peopleQuery += ` ORDER BY last_name1, first_name LIMIT 50`;
+          
+          const people = await pool.query(peopleQuery, searchTerms);
+          additionalData.personas = people.rows;
+          
+          // Si encontramos personas, obtener sus incidencias relacionadas
+          if (people.rows.length > 0) {
+            const dnis = people.rows.map(p => p.dni);
+            const relatedIncidents = await pool.query(`
+              SELECT DISTINCT i.code, i.status, i.location, i.type, i.description, i.creation_date, ip.person_dni
+              FROM incidents i
+              INNER JOIN incidents_people ip ON i.code = ip.incident_code
+              WHERE ip.person_dni = ANY($1::text[])
+              ORDER BY i.creation_date DESC
+              LIMIT 20
+            `, [dnis]);
+            additionalData.incidenciasPersonas = relatedIncidents.rows;
+          }
+        } else {
+          peopleQuery += ` ORDER BY last_name1, first_name LIMIT 50`;
+          const people = await pool.query(peopleQuery);
+          additionalData.personas = people.rows;
+        }
       }
 
-      // Si pregunta por vehículos
+      // Si pregunta por vehículos o matrículas específicas
       if (lowerQuery.includes('vehículo') || lowerQuery.includes('vehiculo') || lowerQuery.includes('coche') || lowerQuery.includes('matrícula')) {
-        const vehicles = await pool.query(`
-          SELECT license_plate, brand, model, color
+        // Buscar matrículas en el query (formato: 1234ABC, 1234-ABC, etc.)
+        const plateMatches = query.match(/\b\d{4}[\s-]?[A-Z]{3}\b/gi);
+        
+        let vehiclesQuery = `
+          SELECT license_plate, brand, model, color, insurance, inspection_date
           FROM vehicles
-          ORDER BY brand, model
-          LIMIT 50
-        `);
-        additionalData.vehiculos = vehicles.rows;
+        `;
+        
+        if (plateMatches && plateMatches.length > 0) {
+          const plates = plateMatches.map(p => p.replace(/[\s-]/g, ''));
+          vehiclesQuery += ` WHERE license_plate = ANY($1::text[]) `;
+          vehiclesQuery += ` ORDER BY brand, model LIMIT 50`;
+          const vehicles = await pool.query(vehiclesQuery, [plates]);
+          additionalData.vehiculos = vehicles.rows;
+          
+          // Obtener incidencias relacionadas con estos vehículos
+          if (vehicles.rows.length > 0) {
+            const licensePlates = vehicles.rows.map(v => v.license_plate);
+            const relatedIncidents = await pool.query(`
+              SELECT DISTINCT i.code, i.status, i.location, i.type, i.description, i.creation_date, iv.vehicle_license_plate
+              FROM incidents i
+              INNER JOIN incidents_vehicles iv ON i.code = iv.incident_code
+              WHERE iv.vehicle_license_plate = ANY($1::text[])
+              ORDER BY i.creation_date DESC
+              LIMIT 20
+            `, [licensePlates]);
+            additionalData.incidenciasVehiculos = relatedIncidents.rows;
+          }
+        } else {
+          vehiclesQuery += ` ORDER BY brand, model LIMIT 50`;
+          const vehicles = await pool.query(vehiclesQuery);
+          additionalData.vehiculos = vehicles.rows;
+        }
       }
 
       // Si pregunta por incidencias específicas
@@ -259,28 +316,42 @@ ${systemContext.recentIncidents.map(i => `- [${i.code}] ${i.type} - ${i.location
         dataContext += '\n📋 DATOS DETALLADOS RELEVANTES:\n';
         
         if (specificData.personas) {
-          dataContext += `\nPersonas (${specificData.personas.length}):\n`;
+          dataContext += `\n👥 Personas encontradas (${specificData.personas.length}):\n`;
           specificData.personas.forEach(p => {
-            dataContext += `- ${p.dni}: ${p.first_name} ${p.last_name1} ${p.last_name2 || ''} - Tel: ${p.phone_number || 'N/A'}\n`;
+            dataContext += `- DNI: ${p.dni}\n  Nombre: ${p.first_name} ${p.last_name1} ${p.last_name2 || ''}\n  Teléfono: ${p.phone_number || 'N/A'}\n  Dirección: ${p.address || 'N/A'}\n`;
+          });
+        }
+
+        if (specificData.incidenciasPersonas) {
+          dataContext += `\n🔗 Incidencias relacionadas con estas personas (${specificData.incidenciasPersonas.length}):\n`;
+          specificData.incidenciasPersonas.forEach(i => {
+            dataContext += `- Persona ${i.person_dni}: [${i.code}] ${i.type} - ${i.location} (${i.status})\n  Fecha: ${new Date(i.creation_date).toLocaleDateString('es-ES')}\n  Descripción: ${i.description ? i.description.substring(0, 100) + '...' : 'Sin descripción'}\n`;
           });
         }
 
         if (specificData.vehiculos) {
-          dataContext += `\nVehículos (${specificData.vehiculos.length}):\n`;
+          dataContext += `\n🚗 Vehículos encontrados (${specificData.vehiculos.length}):\n`;
           specificData.vehiculos.forEach(v => {
-            dataContext += `- ${v.license_plate}: ${v.brand} ${v.model} (${v.color || 'Sin color'})\n`;
+            dataContext += `- Matrícula: ${v.license_plate}\n  Marca/Modelo: ${v.brand} ${v.model}\n  Color: ${v.color || 'Sin especificar'}\n  Seguro: ${v.insurance || 'N/A'}\n  ITV: ${v.inspection_date ? new Date(v.inspection_date).toLocaleDateString('es-ES') : 'N/A'}\n`;
+          });
+        }
+
+        if (specificData.incidenciasVehiculos) {
+          dataContext += `\n🔗 Incidencias relacionadas con estos vehículos (${specificData.incidenciasVehiculos.length}):\n`;
+          specificData.incidenciasVehiculos.forEach(i => {
+            dataContext += `- Vehículo ${i.vehicle_license_plate}: [${i.code}] ${i.type} - ${i.location} (${i.status})\n  Fecha: ${new Date(i.creation_date).toLocaleDateString('es-ES')}\n  Descripción: ${i.description ? i.description.substring(0, 100) + '...' : 'Sin descripción'}\n`;
           });
         }
 
         if (specificData.incidencias) {
-          dataContext += `\nIncidencias detalladas (${specificData.incidencias.length}):\n`;
+          dataContext += `\n📋 Incidencias detalladas (${specificData.incidencias.length}):\n`;
           specificData.incidencias.forEach(i => {
             dataContext += `- [${i.code}] ${i.type} | ${i.status} | ${i.location} | ${new Date(i.creation_date).toLocaleDateString('es-ES')}\n  Descripción: ${i.description ? i.description.substring(0, 100) + '...' : 'Sin descripción'}\n`;
           });
         }
 
         if (specificData.atestados) {
-          dataContext += `\nAtestados (${specificData.atestados.length}):\n`;
+          dataContext += `\n📝 Atestados (${specificData.atestados.length}):\n`;
           specificData.atestados.forEach(a => {
             dataContext += `- [${a.numero}] ${a.descripcion || 'Sin descripción'} - ${a.estado} (${a.num_diligencias} diligencias)\n`;
           });
