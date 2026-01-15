@@ -266,6 +266,72 @@ Cuando encuentres datos específicos, presenta TODOS los detalles disponibles:
         additionalData.vehiculos = vehicles.rows;
       }
 
+      // Si pregunta por estadísticas de apellidos
+      if (lowerQuery.includes('estadística') || lowerQuery.includes('estadistica') || 
+          lowerQuery.includes('cuántos') || lowerQuery.includes('cuantos') ||
+          lowerQuery.includes('apellido')) {
+        
+        // Detectar si menciona un apellido específico después de palabras clave
+        const apellidoPatterns = [
+          /apellido[s]?\s+([a-zñáéíóúü]+)/i,
+          /con\s+apellido\s+([a-zñáéíóúü]+)/i,
+          /de\s+apellido\s+([a-zñáéíóúü]+)/i,
+          /estadística[s]?\s+(?:de|del|para)\s+(?:apellido\s+)?([a-zñáéíóúü]+)/i,
+          /cuántos?\s+([a-zñáéíóúü]+)/i
+        ];
+        
+        let apellidoFound = null;
+        for (const pattern of apellidoPatterns) {
+          const match = lowerQuery.match(pattern);
+          if (match && match[1] && match[1].length > 2) {
+            apellidoFound = match[1];
+            break;
+          }
+        }
+        
+        if (apellidoFound) {
+          // Buscar todas las personas con ese apellido
+          const peopleWithLastname = await pool.query(`
+            SELECT dni, first_name, last_name1, last_name2, phone_number, address
+            FROM people
+            WHERE LOWER(last_name1) LIKE LOWER($1) OR LOWER(last_name2) LIKE LOWER($1)
+            ORDER BY last_name1, first_name
+          `, [`%${apellidoFound}%`]);
+          
+          additionalData.personasConApellido = peopleWithLastname.rows;
+          
+          if (peopleWithLastname.rows.length > 0) {
+            const dnis = peopleWithLastname.rows.map(p => p.dni);
+            
+            // Obtener estadísticas de incidencias por tipo para este apellido
+            const incidentStats = await pool.query(`
+              SELECT 
+                i.type,
+                COUNT(*) as cantidad,
+                COUNT(CASE WHEN i.status = 'Open' THEN 1 END) as abiertas,
+                COUNT(CASE WHEN i.status = 'Closed' THEN 1 END) as cerradas
+              FROM incidents i
+              INNER JOIN incidents_people ip ON i.code = ip.incident_code
+              WHERE ip.person_dni = ANY($1::text[])
+              GROUP BY i.type
+              ORDER BY cantidad DESC
+            `, [dnis]);
+            
+            additionalData.estadisticasIncidenciasApellido = incidentStats.rows;
+            
+            // Obtener total de incidencias
+            const totalIncidents = await pool.query(`
+              SELECT COUNT(DISTINCT i.code) as total
+              FROM incidents i
+              INNER JOIN incidents_people ip ON i.code = ip.incident_code
+              WHERE ip.person_dni = ANY($1::text[])
+            `, [dnis]);
+            
+            additionalData.totalIncidenciasApellido = totalIncidents.rows[0].total;
+          }
+        }
+      }
+
       // Si pregunta por incidencias específicas o tipos específicos
       if (lowerQuery.includes('incidencia') || lowerQuery.includes('caso') || lowerQuery.includes('denuncia') ||
           lowerQuery.includes('violencia') || lowerQuery.includes('género') || lowerQuery.includes('genero') ||
