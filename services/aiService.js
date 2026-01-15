@@ -477,8 +477,16 @@ Proporciona TODOS los detalles cuando te los pidan.
       // Obtener contexto del sistema
       const systemContext = await this.getSystemContext();
       
+      console.log('📊 Contexto del sistema:', {
+        personas: systemContext?.allPeople?.length || 0,
+        vehiculos: systemContext?.allVehicles?.length || 0,
+        relaciones: systemContext?.peopleVehicles?.length || 0
+      });
+      
       // Obtener datos específicos según la consulta
       const specificData = await this.getSpecificData(userQuery);
+      
+      console.log('🔍 Datos específicos encontrados:', Object.keys(specificData));
 
       // Construir el contexto para la IA
       let dataContext = '\n\n=== DATOS DEL SISTEMA ===\n';
@@ -489,14 +497,14 @@ Proporciona TODOS los detalles cuando te los pidan.
 - Personas: ${systemContext.peopleStats.total}
 - Vehículos: ${systemContext.vehiclesStats.total}
 
-TODAS LAS PERSONAS:
-${systemContext.allPeople.map(p => `${p.dni}|${p.first_name} ${p.last_name1} ${p.last_name2 || ''}|${p.phone_number || ''}|${p.address || ''}`).join('\n')}
+TODAS LAS PERSONAS (${systemContext.allPeople?.length || 0} registros):
+${systemContext.allPeople && systemContext.allPeople.length > 0 ? systemContext.allPeople.map(p => `${p.dni}|${p.first_name} ${p.last_name1} ${p.last_name2 || ''}|${p.phone_number || 'Sin tel'}|${p.address || 'Sin dir'}`).join('\n') : 'No hay personas registradas'}
 
-TODOS LOS VEHÍCULOS:
-${systemContext.allVehicles.map(v => `${v.license_plate}|${v.brand} ${v.model}|${v.color || ''}|${v.insurance || ''}`).join('\n')}
+TODOS LOS VEHÍCULOS (${systemContext.allVehicles?.length || 0} registros):
+${systemContext.allVehicles && systemContext.allVehicles.length > 0 ? systemContext.allVehicles.map(v => `${v.license_plate}|${v.brand} ${v.model}|${v.color || 'Sin color'}|${v.insurance || 'Sin seguro'}`).join('\n') : 'No hay vehículos registrados'}
 
-RELACIONES PERSONAS-VEHÍCULOS:
-${systemContext.peopleVehicles.map(pv => `Persona ${pv.person_dni} tiene vehículo ${pv.vehicle_license_plate}`).join('\n')}
+RELACIONES PERSONAS-VEHÍCULOS (${systemContext.peopleVehicles?.length || 0} registros):
+${systemContext.peopleVehicles && systemContext.peopleVehicles.length > 0 ? systemContext.peopleVehicles.map(pv => `Persona ${pv.person_dni} posee vehículo ${pv.vehicle_license_plate}`).join('\n') : 'No hay relaciones registradas'}
 
 INCIDENCIAS POR TIPO:
 ${systemContext.incidentsByType.map(t => `${t.type}: ${t.cantidad}`).join('\n')}
@@ -504,6 +512,8 @@ ${systemContext.incidentsByType.map(t => `${t.type}: ${t.cantidad}`).join('\n')}
 INCIDENCIAS RECIENTES:
 ${systemContext.recentIncidents.map(i => `[${i.code}] ${i.type} - ${i.status} - ${i.location} - ${i.description || 'Sin descripción'}`).join('\n')}
 `;
+      } else {
+        dataContext += '\n[ERROR: No se pudo cargar el contexto del sistema]\n';
       }
 
       // Añadir datos específicos si los hay
