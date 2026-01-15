@@ -108,9 +108,9 @@ Proporciona TODOS los detalles cuando te los pidan.
 
       // CARGAR TODAS LAS PERSONAS (sin límite)
       const allPeople = await pool.query(`
-        SELECT dni, first_name, last_name1, last_name2, phone_number, address
+        SELECT dni, first_name, last_name1, last_name2, phone_number
         FROM people
-        ORDER BY last_name1, first_name
+        ORDER BY last_name1, first_name 
       `);
 
       // CARGAR TODOS LOS VEHÍCULOS (sin límite)
@@ -194,7 +194,7 @@ Proporciona TODOS los detalles cuando te los pidan.
       if (nameMatches && nameMatches.length > 0) {
         const searchTerms = nameMatches.map(name => `%${name}%`);
         const peopleQuery = `
-          SELECT dni, first_name, last_name1, last_name2, phone_number, address
+          SELECT dni, first_name, last_name1, last_name2, phone_number
           FROM people
           WHERE ${searchTerms.map((_, idx) => 
             `(LOWER(first_name) LIKE LOWER($${idx + 1}) OR LOWER(last_name1) LIKE LOWER($${idx + 1}) OR LOWER(last_name2) LIKE LOWER($${idx + 1}))`
@@ -230,7 +230,7 @@ Proporciona TODOS los detalles cuando te los pidan.
       } else {
         // Si no hay nombres específicos, cargar muestra representativa
         const people = await pool.query(`
-          SELECT dni, first_name, last_name1, last_name2, phone_number, address
+          SELECT dni, first_name, last_name1, last_name2, phone_number
           FROM people
           ORDER BY last_name1, first_name
           LIMIT 50
@@ -270,7 +270,7 @@ Proporciona TODOS los detalles cuando te los pidan.
           
           // Obtener propietarios de estos vehículos
           const vehicleOwners = await pool.query(`
-            SELECT DISTINCT p.dni, p.first_name, p.last_name1, p.last_name2, p.phone_number, p.address, pv.vehicle_license_plate
+            SELECT DISTINCT p.dni, p.first_name, p.last_name1, p.last_name2, p.phone_number, pv.vehicle_license_plate
             FROM people p
             INNER JOIN people_vehicles pv ON p.dni = pv.person_dni
             WHERE pv.vehicle_license_plate = ANY($1::text[])
@@ -328,7 +328,7 @@ Proporciona TODOS los detalles cuando te los pidan.
         if (apellidoFound) {
           // Buscar todas las personas con ese apellido
           const peopleWithLastname = await pool.query(`
-            SELECT dni, first_name, last_name1, last_name2, phone_number, address
+            SELECT dni, first_name, last_name1, last_name2, phone_number
             FROM people
             WHERE LOWER(last_name1) LIKE LOWER($1) OR LOWER(last_name2) LIKE LOWER($1)
             ORDER BY last_name1, first_name
@@ -498,7 +498,7 @@ Proporciona TODOS los detalles cuando te los pidan.
 - Vehículos: ${systemContext.vehiclesStats.total}
 
 TODAS LAS PERSONAS (${systemContext.allPeople?.length || 0} registros):
-${systemContext.allPeople && systemContext.allPeople.length > 0 ? systemContext.allPeople.map(p => `${p.dni}|${p.first_name} ${p.last_name1} ${p.last_name2 || ''}|${p.phone_number || 'Sin tel'}|${p.address || 'Sin dir'}`).join('\n') : 'No hay personas registradas'}
+${systemContext.allPeople && systemContext.allPeople.length > 0 ? systemContext.allPeople.map(p => `${p.dni}|${p.first_name} ${p.last_name1} ${p.last_name2 || ''}|${p.phone_number || 'Sin tel'}`).join('\n') : 'No hay personas registradas'}
 
 TODOS LOS VEHÍCULOS (${systemContext.allVehicles?.length || 0} registros):
 ${systemContext.allVehicles && systemContext.allVehicles.length > 0 ? systemContext.allVehicles.map(v => `${v.license_plate}|${v.brand} ${v.model}|${v.color || 'Sin color'}|${v.insurance || 'Sin seguro'}`).join('\n') : 'No hay vehículos registrados'}
@@ -523,7 +523,7 @@ ${systemContext.recentIncidents.map(i => `[${i.code}] ${i.type} - ${i.status} - 
         if (specificData.personasCoincidentes && specificData.personasCoincidentes.length > 0) {
           dataContext += `\nPERSONAS ENCONTRADAS:\n`;
           specificData.personasCoincidentes.forEach(p => {
-            dataContext += `DNI: ${p.dni}, Nombre: ${p.first_name} ${p.last_name1} ${p.last_name2 || ''}, Tel: ${p.phone_number || 'N/A'}, Dir: ${p.address || 'N/A'}\n`;
+            dataContext += `DNI: ${p.dni}, Nombre: ${p.first_name} ${p.last_name1} ${p.last_name2 || ''}, Tel: ${p.phone_number || 'N/A'}\n`;
           });
         }
 

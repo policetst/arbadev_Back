@@ -34,7 +34,7 @@ export const add_people = async (person) => {
  * @returns {promise}
  */
 export const show_people = async () => {
-  const query = 'SELECT * FROM people';
+  const query = 'SELECT dni, first_name, last_name1, last_name2, phone_number FROM people';
   const result = await pool.query(query);
   return result.rows;
 
@@ -42,7 +42,7 @@ export const show_people = async () => {
 
 // Muestra los vehiculos de la base de datos
 export const show_vehicles = async () => {
-  const query = 'SELECT * FROM vehicles';
+  const query = 'SELECT license_plate, brand, model, color, insurance, inspection_date FROM vehicles';
   const result = await pool.query(query);
   return result.rows;
 

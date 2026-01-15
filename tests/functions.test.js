@@ -102,7 +102,7 @@ describe('Database Functions', () => {
 
       const result = await show_people();
 
-      expect(pool.query).toHaveBeenCalledWith('SELECT * FROM people');
+      expect(pool.query).toHaveBeenCalledWith('SELECT dni, first_name, last_name1, last_name2, phone_number FROM people');
       expect(result).toEqual(mockPeople);
     });
   });
