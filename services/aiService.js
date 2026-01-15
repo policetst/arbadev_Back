@@ -26,26 +26,24 @@ const groq = new Groq({
  */
 class AIService {
   constructor() {
-    this.systemPrompt = `Eres un asistente de la aplicación ArbaDevPolice, un sistema de gestión policial. 
+    this.systemPrompt = `Eres un asistente del sistema ArbaDevPolice. 
 
-INSTRUCCIONES CRÍTICAS:
+INSTRUCCIONES:
 1. Responde SIEMPRE en español
-2. Cuando te proporcione datos en formato JSON, ÚSALOS DIRECTAMENTE en tu respuesta
-3. COPIA LOS DATOS EXACTOS del JSON (DNI, nombres, teléfonos, matrículas, marcas, modelos, colores)
-4. NO inventes ni modifiques ningún dato
-5. Si los datos están vacíos o no existen, di "No se encontraron resultados"
-6. Sé preciso, directo y específico con los datos proporcionados
+2. USA DIRECTAMENTE los datos JSON que te proporciono
+3. COPIA los datos EXACTOS (DNI, nombres, teléfonos, matrículas, marcas, modelos, colores, direcciones)
+4. NO inventes datos - usa SOLO lo que está en el JSON
+5. Sé directo, preciso y específico
 
-CAPACIDADES:
-✅ Acceso completo a: incidencias, personas, vehículos, atestados, diligencias
-✅ Puedo mostrar toda la información asociada a una persona o vehículo
-✅ Puedo analizar estadísticas y patrones
+Tienes acceso COMPLETO a:
+- Todas las personas (DNI, nombres, teléfonos, direcciones)
+- Todos los vehículos (matrículas, marcas, modelos, colores, seguros, ITV)
+- Todas las incidencias (códigos, tipos, estados, ubicaciones, descripciones, fechas)
+- Relaciones personas-vehículos
+- Relaciones incidencias-personas
+- Relaciones incidencias-vehículos
 
-FORMATO DE RESPUESTA:
-Cuando encuentres datos específicos, presenta TODOS los detalles disponibles:
-- Persona: DNI, nombre completo, teléfono, dirección
-- Vehículo: matrícula, marca, modelo, color, seguro, ITV
-- Incidencia: código, tipo, estado, ubicación, descripción, fecha
+Proporciona TODOS los detalles cuando te los pidan.
 `;
   }
 
@@ -91,12 +89,12 @@ Cuando encuentres datos específicos, presenta TODOS los detalles disponibles:
         FROM atestados
       `);
 
-      // Obtener incidencias recientes (últimas 10)
+      // Obtener incidencias recientes (últimas 20)
       const recentIncidents = await pool.query(`
         SELECT code, status, location, type, description, creation_date
         FROM incidents
         ORDER BY creation_date DESC
-        LIMIT 10
+        LIMIT 20
       `);
 
       // Obtener usuarios activos
@@ -108,6 +106,38 @@ Cuando encuentres datos específicos, presenta TODOS los detalles disponibles:
         FROM users
       `);
 
+      // CARGAR TODAS LAS PERSONAS (sin límite)
+      const allPeople = await pool.query(`
+        SELECT dni, first_name, last_name1, last_name2, phone_number, address
+        FROM people
+        ORDER BY last_name1, first_name
+      `);
+
+      // CARGAR TODOS LOS VEHÍCULOS (sin límite)
+      const allVehicles = await pool.query(`
+        SELECT license_plate, brand, model, color, insurance, inspection_date
+        FROM vehicles
+        ORDER BY brand, model
+      `);
+
+      // CARGAR TODAS LAS RELACIONES PERSONAS-VEHÍCULOS
+      const peopleVehicles = await pool.query(`
+        SELECT person_dni, vehicle_license_plate
+        FROM people_vehicles
+      `);
+
+      // CARGAR TODAS LAS RELACIONES INCIDENCIAS-PERSONAS
+      const incidentsPeople = await pool.query(`
+        SELECT incident_code, person_dni
+        FROM incidents_people
+      `);
+
+      // CARGAR TODAS LAS RELACIONES INCIDENCIAS-VEHÍCULOS
+      const incidentsVehicles = await pool.query(`
+        SELECT incident_code, vehicle_license_plate
+        FROM incidents_vehicles
+      `);
+
       return {
         incidentsStats: incidentsStats.rows[0],
         incidentsByType: incidentsByType.rows,
@@ -115,7 +145,13 @@ Cuando encuentres datos específicos, presenta TODOS los detalles disponibles:
         vehiclesStats: vehiclesStats.rows[0],
         atestadosStats: atestadosStats.rows[0],
         recentIncidents: recentIncidents.rows,
-        usersStats: usersStats.rows[0]
+        usersStats: usersStats.rows[0],
+        // DATOS COMPLETOS
+        allPeople: allPeople.rows,
+        allVehicles: allVehicles.rows,
+        peopleVehicles: peopleVehicles.rows,
+        incidentsPeople: incidentsPeople.rows,
+        incidentsVehicles: incidentsVehicles.rows
       };
     } catch (error) {
       console.error('Error al obtener contexto del sistema:', error);
