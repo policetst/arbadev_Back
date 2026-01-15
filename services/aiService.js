@@ -569,11 +569,6 @@ ${systemContext.recentIncidents.map(i => `[${i.code}] ${i.type} - ${i.status} - 
           }
         }
       }
-          specificData.incidenciasPorUbicacion.forEach(u => {
-            dataContext += `- ${u.location}: ${u.cantidad}\n`;
-          });
-        }
-      }
 
       // Preparar mensajes para Groq (formato OpenAI)
       const messages = [
