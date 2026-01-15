@@ -481,83 +481,94 @@ Proporciona TODOS los detalles cuando te los pidan.
       const specificData = await this.getSpecificData(userQuery);
 
       // Construir el contexto para la IA
-      let dataContext = '\n\n--- DATOS ACTUALES DEL SISTEMA ---\n';
+      let dataContext = '\n\n=== DATOS DEL SISTEMA ===\n';
       
       if (systemContext) {
-        dataContext += `\n📊 ESTADÍSTICAS GENERALES:
-- Incidencias totales: ${systemContext.incidentsStats.total}
-  - Abiertas: ${systemContext.incidentsStats.abiertas}
-  - Cerradas: ${systemContext.incidentsStats.cerradas}
-  - Campo brigada: ${systemContext.incidentsStats.brigade_field}
-- Personas registradas: ${systemContext.peopleStats.total}
-- Vehículos registrados: ${systemContext.vehiclesStats.total}
-- Atestados: ${systemContext.atestadosStats.total} (${systemContext.atestadosStats.activos} activos, ${systemContext.atestadosStats.cerrados} cerrados)
-- Usuarios: ${systemContext.usersStats.total} (${systemContext.usersStats.activos} activos, ${systemContext.usersStats.administradores} administradores)
+        dataContext += `\nESTADÍSTICAS:
+- Incidencias: ${systemContext.incidentsStats.total} (${systemContext.incidentsStats.abiertas} abiertas, ${systemContext.incidentsStats.cerradas} cerradas)
+- Personas: ${systemContext.peopleStats.total}
+- Vehículos: ${systemContext.vehiclesStats.total}
 
-📈 INCIDENCIAS POR TIPO:
-${systemContext.incidentsByType.map(t => `- ${t.type}: ${t.cantidad}`).join('\n')}
+TODAS LAS PERSONAS:
+${systemContext.allPeople.map(p => `${p.dni}|${p.first_name} ${p.last_name1} ${p.last_name2 || ''}|${p.phone_number || ''}|${p.address || ''}`).join('\n')}
 
-🕐 INCIDENCIAS RECIENTES:
-${systemContext.recentIncidents.map(i => `- [${i.code}] ${i.type} - ${i.location} (${i.status}) - ${new Date(i.creation_date).toLocaleDateString('es-ES')}`).join('\n')}
+TODOS LOS VEHÍCULOS:
+${systemContext.allVehicles.map(v => `${v.license_plate}|${v.brand} ${v.model}|${v.color || ''}|${v.insurance || ''}`).join('\n')}
+
+RELACIONES PERSONAS-VEHÍCULOS:
+${systemContext.peopleVehicles.map(pv => `Persona ${pv.person_dni} tiene vehículo ${pv.vehicle_license_plate}`).join('\n')}
+
+INCIDENCIAS POR TIPO:
+${systemContext.incidentsByType.map(t => `${t.type}: ${t.cantidad}`).join('\n')}
+
+INCIDENCIAS RECIENTES:
+${systemContext.recentIncidents.map(i => `[${i.code}] ${i.type} - ${i.status} - ${i.location} - ${i.description || 'Sin descripción'}`).join('\n')}
 `;
       }
 
       // Añadir datos específicos si los hay
       if (Object.keys(specificData).length > 0) {
-        dataContext += '\n📋 DATOS DETALLADOS RELEVANTES:\n';
+        dataContext += '\n=== DATOS ESPECÍFICOS DE TU BÚSQUEDA ===\n';
         
-        if (specificData.personas) {
-          dataContext += `\n👥 Personas encontradas (${specificData.personas.length}):\n`;
-          specificData.personas.forEach(p => {
-            dataContext += `- DNI: ${p.dni}\n  Nombre: ${p.first_name} ${p.last_name1} ${p.last_name2 || ''}\n  Teléfono: ${p.phone_number || 'N/A'}\n  Dirección: ${p.address || 'N/A'}\n`;
+        if (specificData.personasCoincidentes && specificData.personasCoincidentes.length > 0) {
+          dataContext += `\nPERSONAS ENCONTRADAS:\n`;
+          specificData.personasCoincidentes.forEach(p => {
+            dataContext += `DNI: ${p.dni}, Nombre: ${p.first_name} ${p.last_name1} ${p.last_name2 || ''}, Tel: ${p.phone_number || 'N/A'}, Dir: ${p.address || 'N/A'}\n`;
           });
         }
 
-        if (specificData.incidenciasPersonas) {
-          dataContext += `\n🔗 Incidencias relacionadas con estas personas (${specificData.incidenciasPersonas.length}):\n`;
+        if (specificData.vehiculosPersonas && specificData.vehiculosPersonas.length > 0) {
+          dataContext += `\nVEHÍCULOS DE ESTAS PERSONAS:\n`;
+          specificData.vehiculosPersonas.forEach(v => {
+            dataContext += `Persona ${v.person_dni} -> Matrícula: ${v.license_plate}, ${v.brand} ${v.model}, Color: ${v.color || 'N/A'}\n`;
+          });
+        }
+
+        if (specificData.incidenciasPersonas && specificData.incidenciasPersonas.length > 0) {
+          dataContext += `\nINCIDENCIAS DE ESTAS PERSONAS:\n`;
           specificData.incidenciasPersonas.forEach(i => {
-            dataContext += `- Persona ${i.person_dni}: [${i.code}] ${i.type} - ${i.location} (${i.status})\n  Fecha: ${new Date(i.creation_date).toLocaleDateString('es-ES')}\n  Descripción: ${i.description ? i.description.substring(0, 100) + '...' : 'Sin descripción'}\n`;
+            dataContext += `Persona ${i.person_dni}: [${i.code}] ${i.type} - ${i.status} - ${i.location} - ${i.description || 'Sin desc'}\n`;
           });
         }
 
-        if (specificData.vehiculos) {
-          dataContext += `\n🚗 Vehículos encontrados (${specificData.vehiculos.length}):\n`;
-          specificData.vehiculos.forEach(v => {
-            dataContext += `- Matrícula: ${v.license_plate}\n  Marca/Modelo: ${v.brand} ${v.model}\n  Color: ${v.color || 'Sin especificar'}\n  Seguro: ${v.insurance || 'N/A'}\n  ITV: ${v.inspection_date ? new Date(v.inspection_date).toLocaleDateString('es-ES') : 'N/A'}\n`;
+        if (specificData.vehiculosCoincidentes && specificData.vehiculosCoincidentes.length > 0) {
+          dataContext += `\nVEHÍCULOS ENCONTRADOS:\n`;
+          specificData.vehiculosCoincidentes.forEach(v => {
+            dataContext += `${v.license_plate}: ${v.brand} ${v.model}, Color: ${v.color || 'N/A'}, Seguro: ${v.insurance || 'N/A'}\n`;
           });
         }
 
-        if (specificData.incidenciasVehiculos) {
-          dataContext += `\n🔗 Incidencias relacionadas con estos vehículos (${specificData.incidenciasVehiculos.length}):\n`;
+        if (specificData.propietariosVehiculos && specificData.propietariosVehiculos.length > 0) {
+          dataContext += `\nPROPIETARIOS DE ESTOS VEHÍCULOS:\n`;
+          specificData.propietariosVehiculos.forEach(p => {
+            dataContext += `Vehículo ${p.vehicle_license_plate} -> ${p.first_name} ${p.last_name1} (${p.dni}), Tel: ${p.phone_number || 'N/A'}\n`;
+          });
+        }
+
+        if (specificData.incidenciasVehiculos && specificData.incidenciasVehiculos.length > 0) {
+          dataContext += `\nINCIDENCIAS DE ESTOS VEHÍCULOS:\n`;
           specificData.incidenciasVehiculos.forEach(i => {
-            dataContext += `- Vehículo ${i.vehicle_license_plate}: [${i.code}] ${i.type} - ${i.location} (${i.status})\n  Fecha: ${new Date(i.creation_date).toLocaleDateString('es-ES')}\n  Descripción: ${i.description ? i.description.substring(0, 100) + '...' : 'Sin descripción'}\n`;
+            dataContext += `Vehículo ${i.vehicle_license_plate}: [${i.code}] ${i.type} - ${i.status} - ${i.description || 'Sin desc'}\n`;
           });
         }
 
-        if (specificData.incidencias) {
-          dataContext += `\n📋 Incidencias detalladas (${specificData.incidencias.length}):\n`;
-          specificData.incidencias.forEach(i => {
-            dataContext += `- [${i.code}] ${i.type} | ${i.status} | ${i.location} | ${new Date(i.creation_date).toLocaleDateString('es-ES')}\n  Descripción: ${i.description ? i.description.substring(0, 100) + '...' : 'Sin descripción'}\n`;
+        if (specificData.personasConApellido && specificData.personasConApellido.length > 0) {
+          dataContext += `\nPERSONAS CON ESTE APELLIDO:\n`;
+          specificData.personasConApellido.forEach(p => {
+            dataContext += `${p.dni}: ${p.first_name} ${p.last_name1} ${p.last_name2 || ''}, Tel: ${p.phone_number || 'N/A'}\n`;
           });
         }
 
-        if (specificData.atestados) {
-          dataContext += `\n📝 Atestados (${specificData.atestados.length}):\n`;
-          specificData.atestados.forEach(a => {
-            dataContext += `- [${a.numero}] ${a.descripcion || 'Sin descripción'} - ${a.estado} (${a.num_diligencias} diligencias)\n`;
+        if (specificData.estadisticasIncidenciasApellido && specificData.estadisticasIncidenciasApellido.length > 0) {
+          dataContext += `\nESTADÍSTICAS DE INCIDENCIAS PARA ESTE APELLIDO:\n`;
+          specificData.estadisticasIncidenciasApellido.forEach(s => {
+            dataContext += `${s.type}: ${s.cantidad} total (${s.abiertas} abiertas, ${s.cerradas} cerradas)\n`;
           });
+          if (specificData.totalIncidenciasApellido) {
+            dataContext += `TOTAL: ${specificData.totalIncidenciasApellido} incidencias\n`;
+          }
         }
-
-        if (specificData.incidenciasPorMes) {
-          dataContext += `\nIncidencias por mes (últimos 12 meses):\n`;
-          specificData.incidenciasPorMes.forEach(m => {
-            const fecha = new Date(m.mes);
-            dataContext += `- ${fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}: ${m.cantidad}\n`;
-          });
-        }
-
-        if (specificData.incidenciasPorUbicacion) {
-          dataContext += `\nIncidencias por ubicación:\n`;
+      }
           specificData.incidenciasPorUbicacion.forEach(u => {
             dataContext += `- ${u.location}: ${u.cantidad}\n`;
           });
