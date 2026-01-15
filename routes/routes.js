@@ -14,6 +14,7 @@ import nodemailer from 'nodemailer';
 import transporter from '../email/transporter.js'
 import { getPeopleRelPerson, getVehiclesRelPerson } from '../functions.js';
 import { getPeopleRelVehicle, getVehiclesRelVehicle } from '../functions.js';
+import aiService from '../services/aiService.js';
 
 dotenv.config();
 
@@ -1708,6 +1709,89 @@ router.get('/atestados/stats/count', authToken, async (req, res) => {
   } catch (error) {
     console.error('Error al obtener estadísticas de atestados:', error);
     res.status(500).json({ ok: false, message: 'Error al obtener estadísticas' });
+  }
+});
+
+// ==================== RUTAS PARA ASISTENTE IA ====================
+
+// * Route to chat with AI assistant
+router.post('/ai/chat', authToken, async (req, res) => {
+  const { message, conversationHistory = [] } = req.body;
+
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    return res.status(400).json({ ok: false, message: 'El mensaje es obligatorio' });
+  }
+
+  try {
+    console.log('🤖 Procesando consulta IA:', message.substring(0, 100) + '...');
+    
+    const result = await aiService.processQuery(message, conversationHistory);
+    
+    if (result.ok) {
+      res.json({
+        ok: true,
+        response: result.response,
+        usage: result.usage
+      });
+    } else {
+      res.status(500).json({
+        ok: false,
+        message: result.error || 'Error al procesar la consulta'
+      });
+    }
+  } catch (error) {
+    console.error('Error en endpoint AI chat:', error);
+    res.status(500).json({ ok: false, message: 'Error al procesar la consulta de IA' });
+  }
+});
+
+// * Route to get executive summary from AI
+router.get('/ai/summary', authToken, async (req, res) => {
+  try {
+    console.log('🤖 Generando resumen ejecutivo...');
+    
+    const result = await aiService.generateExecutiveSummary();
+    
+    if (result.ok) {
+      res.json({
+        ok: true,
+        summary: result.response,
+        usage: result.usage
+      });
+    } else {
+      res.status(500).json({
+        ok: false,
+        message: result.error || 'Error al generar el resumen'
+      });
+    }
+  } catch (error) {
+    console.error('Error en endpoint AI summary:', error);
+    res.status(500).json({ ok: false, message: 'Error al generar el resumen ejecutivo' });
+  }
+});
+
+// * Route to analyze incident patterns with AI
+router.get('/ai/analyze-patterns', authToken, async (req, res) => {
+  try {
+    console.log('🤖 Analizando patrones de incidencias...');
+    
+    const result = await aiService.analyzeIncidentPatterns();
+    
+    if (result.ok) {
+      res.json({
+        ok: true,
+        analysis: result.response,
+        usage: result.usage
+      });
+    } else {
+      res.status(500).json({
+        ok: false,
+        message: result.error || 'Error al analizar patrones'
+      });
+    }
+  } catch (error) {
+    console.error('Error en endpoint AI analyze-patterns:', error);
+    res.status(500).json({ ok: false, message: 'Error al analizar patrones de incidencias' });
   }
 });
 
