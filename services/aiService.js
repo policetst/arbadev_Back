@@ -142,83 +142,99 @@ CONTEXTO DEL SISTEMA:
     const additionalData = {};
 
     try {
+      // SIEMPRE cargar personas (primeras 100 para tener contexto completo)
+      const people = await pool.query(`
+        SELECT dni, first_name, last_name1, last_name2, phone_number, address
+        FROM people
+        ORDER BY last_name1, first_name
+        LIMIT 100
+      `);
+      additionalData.personas = people.rows;
+
+      // SIEMPRE cargar vehículos (todos para tener contexto completo)
+      const vehicles = await pool.query(`
+        SELECT license_plate, brand, model, color, insurance, inspection_date
+        FROM vehicles
+        ORDER BY brand, model
+        LIMIT 100
+      `);
+      additionalData.vehiculos = vehicles.rows;
+
       // Buscar nombres propios en la consulta (palabras que empiezan con mayúscula)
       const nameMatches = query.match(/\b[A-ZÑÁÉÍÓÚ][a-zñáéíóúü]+(?:\s+[A-ZÑÁÉÍÓÚ][a-zñáéíóúü]+)*/g);
       
-      // Si pregunta por personas específicas o menciona nombres
-      if (lowerQuery.includes('persona') || lowerQuery.includes('gente') || lowerQuery.includes('ciudadano') || nameMatches) {
-        let peopleQuery = `
+      // Si hay nombres específicos, buscar incidencias relacionadas
+      if (nameMatches && nameMatches.length > 0) {
+        const searchTerms = nameMatches.map(name => `%${name}%`);
+        const peopleQuery = `
           SELECT dni, first_name, last_name1, last_name2, phone_number, address
           FROM people
+          WHERE ${searchTerms.map((_, idx) => 
+            `(LOWER(first_name) LIKE LOWER($${idx + 1}) OR LOWER(last_name1) LIKE LOWER($${idx + 1}) OR LOWER(last_name2) LIKE LOWER($${idx + 1}))`
+          ).join(' OR ')}
+          ORDER BY last_name1, first_name
+          LIMIT 20
         `;
         
-        // Si hay nombres específicos, buscar por ellos
-        if (nameMatches && nameMatches.length > 0) {
-          const searchTerms = nameMatches.map(name => `%${name}%`);
-          peopleQuery += ` WHERE `;
-          peopleQuery += searchTerms.map((_, idx) => 
-            `(LOWER(first_name) LIKE LOWER($${idx + 1}) OR LOWER(last_name1) LIKE LOWER($${idx + 1}) OR LOWER(last_name2) LIKE LOWER($${idx + 1}))`
-          ).join(' OR ');
-          peopleQuery += ` ORDER BY last_name1, first_name LIMIT 50`;
-          
-          const people = await pool.query(peopleQuery, searchTerms);
-          additionalData.personas = people.rows;
-          
-          // Si encontramos personas, obtener sus incidencias relacionadas
-          if (people.rows.length > 0) {
-            const dnis = people.rows.map(p => p.dni);
-            const relatedIncidents = await pool.query(`
-              SELECT DISTINCT i.code, i.status, i.location, i.type, i.description, i.creation_date, ip.person_dni
-              FROM incidents i
-              INNER JOIN incidents_people ip ON i.code = ip.incident_code
-              WHERE ip.person_dni = ANY($1::text[])
-              ORDER BY i.creation_date DESC
-              LIMIT 20
-            `, [dnis]);
-            additionalData.incidenciasPersonas = relatedIncidents.rows;
-          }
-        } else {
-          peopleQuery += ` ORDER BY last_name1, first_name LIMIT 50`;
-          const people = await pool.query(peopleQuery);
-          additionalData.personas = people.rows;
+        const matchedPeople = await pool.query(peopleQuery, searchTerms);
+        
+        if (matchedPeople.rows.length > 0) {
+          const dnis = matchedPeople.rows.map(p => p.dni);
+          const relatedIncidents = await pool.query(`
+            SELECT DISTINCT i.code, i.status, i.location, i.type, i.description, i.creation_date, ip.person_dni
+            FROM incidents i
+            INNER JOIN incidents_people ip ON i.code = ip.incident_code
+            WHERE ip.person_dni = ANY($1::text[])
+            ORDER BY i.creation_date DESC
+            LIMIT 20
+          `, [dnis]);
+          additionalData.incidenciasPersonas = relatedIncidents.rows;
+          additionalData.personasCoincidentes = matchedPeople.rows;
         }
       }
 
-      // Si pregunta por vehículos o matrículas específicas
-      if (lowerQuery.includes('vehículo') || lowerQuery.includes('vehiculo') || lowerQuery.includes('coche') || lowerQuery.includes('matrícula')) {
-        // Buscar matrículas en el query (formato: 1234ABC, 1234-ABC, etc.)
-        const plateMatches = query.match(/\b\d{4}[\s-]?[A-Z]{3}\b/gi);
-        
-        let vehiclesQuery = `
+      // Buscar matrículas en el query (formato: 1234ABC, 1234-ABC, etc.)
+      const plateMatches = query.match(/\b\d{4}[\s-]?[A-Z]{3}\b/gi);
+      
+      if (plateMatches && plateMatches.length > 0) {
+        const plates = plateMatches.map(p => p.replace(/[\s-]/g, ''));
+        const matchedVehicles = await pool.query(`
           SELECT license_plate, brand, model, color, insurance, inspection_date
           FROM vehicles
-        `;
+          WHERE license_plate = ANY($1::text[])
+        `, [plates]);
         
-        if (plateMatches && plateMatches.length > 0) {
-          const plates = plateMatches.map(p => p.replace(/[\s-]/g, ''));
-          vehiclesQuery += ` WHERE license_plate = ANY($1::text[]) `;
-          vehiclesQuery += ` ORDER BY brand, model LIMIT 50`;
-          const vehicles = await pool.query(vehiclesQuery, [plates]);
-          additionalData.vehiculos = vehicles.rows;
-          
-          // Obtener incidencias relacionadas con estos vehículos
-          if (vehicles.rows.length > 0) {
-            const licensePlates = vehicles.rows.map(v => v.license_plate);
-            const relatedIncidents = await pool.query(`
-              SELECT DISTINCT i.code, i.status, i.location, i.type, i.description, i.creation_date, iv.vehicle_license_plate
-              FROM incidents i
-              INNER JOIN incidents_vehicles iv ON i.code = iv.incident_code
-              WHERE iv.vehicle_license_plate = ANY($1::text[])
-              ORDER BY i.creation_date DESC
-              LIMIT 20
-            `, [licensePlates]);
-            additionalData.incidenciasVehiculos = relatedIncidents.rows;
-          }
-        } else {
-          vehiclesQuery += ` ORDER BY brand, model LIMIT 50`;
-          const vehicles = await pool.query(vehiclesQuery);
-          additionalData.vehiculos = vehicles.rows;
+        if (matchedVehicles.rows.length > 0) {
+          const licensePlates = matchedVehicles.rows.map(v => v.license_plate);
+          const relatedIncidents = await pool.query(`
+            SELECT DISTINCT i.code, i.status, i.location, i.type, i.description, i.creation_date, iv.vehicle_license_plate
+            FROM incidents i
+            INNER JOIN incidents_vehicles iv ON i.code = iv.incident_code
+            WHERE iv.vehicle_license_plate = ANY($1::text[])
+            ORDER BY i.creation_date DESC
+            LIMIT 20
+          `, [licensePlates]);
+          additionalData.incidenciasVehiculos = relatedIncidents.rows;
+          additionalData.vehiculosCoincidentes = matchedVehicles.rows;
         }
+      }
+      
+      // Buscar por marca si se menciona alguna
+      const brandKeywords = ['ford', 'seat', 'renault', 'volkswagen', 'peugeot', 'opel', 'citroen', 'mercedes', 'bmw', 'audi', 'toyota', 'nissan', 'honda'];
+      const mentionedBrands = brandKeywords.filter(brand => lowerQuery.includes(brand));
+      
+      if (mentionedBrands.length > 0) {
+        const brandSearchTerms = mentionedBrands.map(brand => `%${brand}%`);
+        const matchedVehicles = await pool.query(`
+          SELECT license_plate, brand, model, color, insurance, inspection_date
+          FROM vehicles
+          WHERE ${brandSearchTerms.map((_, idx) => 
+            `LOWER(brand) LIKE LOWER($${idx + 1})`
+          ).join(' OR ')}
+          ORDER BY brand, model
+          LIMIT 50
+        `, brandSearchTerms);
+        additionalData.vehiculosCoincidentes = matchedVehicles.rows;
       }
 
       // Si pregunta por incidencias específicas o tipos específicos
