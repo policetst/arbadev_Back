@@ -115,7 +115,7 @@ Proporciona TODOS los detalles cuando te los pidan.
 
       // CARGAR TODOS LOS VEHÍCULOS (sin límite)
       const allVehicles = await pool.query(`
-        SELECT license_plate, brand, model, color, insurance, inspection_date
+        SELECT license_plate, brand, model, color
         FROM vehicles
         ORDER BY brand, model
       `);
@@ -220,7 +220,7 @@ Proporciona TODOS los detalles cuando te los pidan.
           
           // Obtener vehículos asociados a estas personas
           const relatedVehicles = await pool.query(`
-            SELECT DISTINCT v.license_plate, v.brand, v.model, v.color, v.insurance, v.inspection_date, pv.person_dni
+              SELECT DISTINCT v.license_plate, v.brand, v.model, v.color, pv.person_dni
             FROM vehicles v
             INNER JOIN people_vehicles pv ON v.license_plate = pv.vehicle_license_plate
             WHERE pv.person_dni = ANY($1::text[])
@@ -249,7 +249,7 @@ Proporciona TODOS los detalles cuando te los pidan.
       if (plateMatches && plateMatches.length > 0) {
         const plates = plateMatches.map(p => p.replace(/[\s-]/g, ''));
         const matchedVehicles = await pool.query(`
-          SELECT license_plate, brand, model, color, insurance, inspection_date
+          SELECT license_plate, brand, model, color
           FROM vehicles
           WHERE license_plate = ANY($1::text[])
         `, [plates]);
@@ -282,7 +282,7 @@ Proporciona TODOS los detalles cuando te los pidan.
       else if (mentionedBrands.length > 0) {
         const brandSearchTerms = mentionedBrands.map(brand => `%${brand}%`);
         const matchedVehicles = await pool.query(`
-          SELECT license_plate, brand, model, color, insurance, inspection_date
+          SELECT license_plate, brand, model, color
           FROM vehicles
           WHERE ${brandSearchTerms.map((_, idx) => 
             `LOWER(brand) LIKE LOWER($${idx + 1})`
@@ -294,7 +294,7 @@ Proporciona TODOS los detalles cuando te los pidan.
       // Si no hay búsqueda específica, cargar muestra representativa
       else {
         const vehicles = await pool.query(`
-          SELECT license_plate, brand, model, color, insurance, inspection_date
+          SELECT license_plate, brand, model, color
           FROM vehicles
           ORDER BY brand, model
           LIMIT 50
@@ -501,7 +501,7 @@ TODAS LAS PERSONAS (${systemContext.allPeople?.length || 0} registros):
 ${systemContext.allPeople && systemContext.allPeople.length > 0 ? systemContext.allPeople.map(p => `${p.dni}|${p.first_name} ${p.last_name1} ${p.last_name2 || ''}|${p.phone_number || 'Sin tel'}`).join('\n') : 'No hay personas registradas'}
 
 TODOS LOS VEHÍCULOS (${systemContext.allVehicles?.length || 0} registros):
-${systemContext.allVehicles && systemContext.allVehicles.length > 0 ? systemContext.allVehicles.map(v => `${v.license_plate}|${v.brand} ${v.model}|${v.color || 'Sin color'}|${v.insurance || 'Sin seguro'}`).join('\n') : 'No hay vehículos registrados'}
+${systemContext.allVehicles && systemContext.allVehicles.length > 0 ? systemContext.allVehicles.map(v => `${v.license_plate}|${v.brand} ${v.model}|${v.color || 'Sin color'}`).join('\n') : 'No hay vehículos registrados'}
 
 RELACIONES PERSONAS-VEHÍCULOS (${systemContext.peopleVehicles?.length || 0} registros):
 ${systemContext.peopleVehicles && systemContext.peopleVehicles.length > 0 ? systemContext.peopleVehicles.map(pv => `Persona ${pv.person_dni} posee vehículo ${pv.vehicle_license_plate}`).join('\n') : 'No hay relaciones registradas'}
@@ -544,7 +544,7 @@ ${systemContext.recentIncidents.map(i => `[${i.code}] ${i.type} - ${i.status} - 
         if (specificData.vehiculosCoincidentes && specificData.vehiculosCoincidentes.length > 0) {
           dataContext += `\nVEHÍCULOS ENCONTRADOS:\n`;
           specificData.vehiculosCoincidentes.forEach(v => {
-            dataContext += `${v.license_plate}: ${v.brand} ${v.model}, Color: ${v.color || 'N/A'}, Seguro: ${v.insurance || 'N/A'}\n`;
+            dataContext += `${v.license_plate}: ${v.brand} ${v.model}, Color: ${v.color || 'N/A'}\n`;
           });
         }
 

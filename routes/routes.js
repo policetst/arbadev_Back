@@ -522,7 +522,7 @@ router.get('/vehicles',authToken, async (req, res) => {
 router.get('/vehicles/:license_plate', authToken, async (req, res) => {
   const { license_plate } = req.params;
   try {
-    const query = 'SELECT license_plate, brand, model, color, insurance, inspection_date FROM vehicles WHERE license_plate = $1';
+    const query = 'SELECT license_plate, brand, model, color FROM vehicles WHERE license_plate = $1';
     const result = await pool.query(query, [license_plate]);
 
     if (result.rows.length <= 0) {
