@@ -31,15 +31,14 @@ class AIService {
 INSTRUCCIONES:
 1. Responde SIEMPRE en español
 2. USA DIRECTAMENTE los datos JSON que te proporciono
-3. COPIA los datos EXACTOS (DNI, nombres, teléfonos, matrículas, marcas, modelos, colores, direcciones)
+3. COPIA los datos EXACTOS (DNI, nombres, teléfonos, matrículas, marcas, modelos, colores)
 4. NO inventes datos - usa SOLO lo que está en el JSON
 5. Sé directo, preciso y específico
 
 Tienes acceso COMPLETO a:
-- Todas las personas (DNI, nombres, teléfonos, direcciones)
-- Todos los vehículos (matrículas, marcas, modelos, colores, seguros, ITV)
+- Todas las personas (DNI, nombres, teléfonos)
+- Todos los vehículos (matrículas, marcas, modelos, colores)
 - Todas las incidencias (códigos, tipos, estados, ubicaciones, descripciones, fechas)
-- Relaciones personas-vehículos
 - Relaciones incidencias-personas
 - Relaciones incidencias-vehículos
 
@@ -120,12 +119,6 @@ Proporciona TODOS los detalles cuando te los pidan.
         ORDER BY brand, model
       `);
 
-      // CARGAR TODAS LAS RELACIONES PERSONAS-VEHÍCULOS
-      const peopleVehicles = await pool.query(`
-        SELECT person_dni, vehicle_license_plate
-        FROM people_vehicles
-      `);
-
       // CARGAR TODAS LAS RELACIONES INCIDENCIAS-PERSONAS
       const incidentsPeople = await pool.query(`
         SELECT incident_code, person_dni
@@ -149,7 +142,6 @@ Proporciona TODOS los detalles cuando te los pidan.
         // DATOS COMPLETOS
         allPeople: allPeople.rows,
         allVehicles: allVehicles.rows,
-        peopleVehicles: peopleVehicles.rows,
         incidentsPeople: incidentsPeople.rows,
         incidentsVehicles: incidentsVehicles.rows
       };
@@ -218,12 +210,13 @@ Proporciona TODOS los detalles cuando te los pidan.
           `, [dnis]);
           additionalData.incidenciasPersonas = relatedIncidents.rows;
           
-          // Obtener vehículos asociados a estas personas
+          // Obtener vehículos asociados a estas personas (a través de incidencias)
           const relatedVehicles = await pool.query(`
-              SELECT DISTINCT v.license_plate, v.brand, v.model, v.color, pv.person_dni
+            SELECT DISTINCT v.license_plate, v.brand, v.model, v.color, ip.person_dni
             FROM vehicles v
-            INNER JOIN people_vehicles pv ON v.license_plate = pv.vehicle_license_plate
-            WHERE pv.person_dni = ANY($1::text[])
+            INNER JOIN incidents_vehicles iv ON v.license_plate = iv.vehicle_license_plate
+            INNER JOIN incidents_people ip ON iv.incident_code = ip.incident_code
+            WHERE ip.person_dni = ANY($1::text[])
           `, [dnis]);
           additionalData.vehiculosPersonas = relatedVehicles.rows;
         }
@@ -268,12 +261,13 @@ Proporciona TODOS los detalles cuando te los pidan.
           `, [licensePlates]);
           additionalData.incidenciasVehiculos = relatedIncidents.rows;
           
-          // Obtener propietarios de estos vehículos
+          // Obtener personas asociadas a estos vehículos (a través de incidencias)
           const vehicleOwners = await pool.query(`
-            SELECT DISTINCT p.dni, p.first_name, p.last_name1, p.last_name2, p.phone_number, pv.vehicle_license_plate
+            SELECT DISTINCT p.dni, p.first_name, p.last_name1, p.last_name2, p.phone_number, iv.vehicle_license_plate
             FROM people p
-            INNER JOIN people_vehicles pv ON p.dni = pv.person_dni
-            WHERE pv.vehicle_license_plate = ANY($1::text[])
+            INNER JOIN incidents_people ip ON p.dni = ip.person_dni
+            INNER JOIN incidents_vehicles iv ON ip.incident_code = iv.incident_code
+            WHERE iv.vehicle_license_plate = ANY($1::text[])
           `, [licensePlates]);
           additionalData.propietariosVehiculos = vehicleOwners.rows;
         }
@@ -503,8 +497,11 @@ ${systemContext.allPeople && systemContext.allPeople.length > 0 ? systemContext.
 TODOS LOS VEHÍCULOS (${systemContext.allVehicles?.length || 0} registros):
 ${systemContext.allVehicles && systemContext.allVehicles.length > 0 ? systemContext.allVehicles.map(v => `${v.license_plate}|${v.brand} ${v.model}|${v.color || 'Sin color'}`).join('\n') : 'No hay vehículos registrados'}
 
-RELACIONES PERSONAS-VEHÍCULOS (${systemContext.peopleVehicles?.length || 0} registros):
-${systemContext.peopleVehicles && systemContext.peopleVehicles.length > 0 ? systemContext.peopleVehicles.map(pv => `Persona ${pv.person_dni} posee vehículo ${pv.vehicle_license_plate}`).join('\n') : 'No hay relaciones registradas'}
+RELACIONES INCIDENCIAS-PERSONAS (${systemContext.incidentsPeople?.length || 0} registros):
+${systemContext.incidentsPeople && systemContext.incidentsPeople.length > 0 ? systemContext.incidentsPeople.map(ip => `Incidencia ${ip.incident_code} involucra a persona ${ip.person_dni}`).join('\n') : 'No hay relaciones registradas'}
+
+RELACIONES INCIDENCIAS-VEHÍCULOS (${systemContext.incidentsVehicles?.length || 0} registros):
+${systemContext.incidentsVehicles && systemContext.incidentsVehicles.length > 0 ? systemContext.incidentsVehicles.map(iv => `Incidencia ${iv.incident_code} involucra a vehículo ${iv.vehicle_license_plate}`).join('\n') : 'No hay relaciones registradas'}
 
 INCIDENCIAS POR TIPO:
 ${systemContext.incidentsByType.map(t => `${t.type}: ${t.cantidad}`).join('\n')}
@@ -528,9 +525,9 @@ ${systemContext.recentIncidents.map(i => `[${i.code}] ${i.type} - ${i.status} - 
         }
 
         if (specificData.vehiculosPersonas && specificData.vehiculosPersonas.length > 0) {
-          dataContext += `\nVEHÍCULOS DE ESTAS PERSONAS:\n`;
+          dataContext += `\nVEHÍCULOS RELACIONADOS CON ESTAS PERSONAS (a través de incidencias):\n`;
           specificData.vehiculosPersonas.forEach(v => {
-            dataContext += `Persona ${v.person_dni} -> Matrícula: ${v.license_plate}, ${v.brand} ${v.model}, Color: ${v.color || 'N/A'}\n`;
+            dataContext += `Persona ${v.person_dni} relacionada con vehículo: ${v.license_plate}, ${v.brand} ${v.model}, Color: ${v.color || 'N/A'}\n`;
           });
         }
 
@@ -549,9 +546,9 @@ ${systemContext.recentIncidents.map(i => `[${i.code}] ${i.type} - ${i.status} - 
         }
 
         if (specificData.propietariosVehiculos && specificData.propietariosVehiculos.length > 0) {
-          dataContext += `\nPROPIETARIOS DE ESTOS VEHÍCULOS:\n`;
+          dataContext += `\nPERSONAS RELACIONADAS CON ESTOS VEHÍCULOS (a través de incidencias):\n`;
           specificData.propietariosVehiculos.forEach(p => {
-            dataContext += `Vehículo ${p.vehicle_license_plate} -> ${p.first_name} ${p.last_name1} (${p.dni}), Tel: ${p.phone_number || 'N/A'}\n`;
+            dataContext += `Vehículo ${p.vehicle_license_plate} relacionado con ${p.first_name} ${p.last_name1} (${p.dni}), Tel: ${p.phone_number || 'N/A'}\n`;
           });
         }
 
