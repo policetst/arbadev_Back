@@ -27,7 +27,6 @@ const groq = new Groq({
 class AIService {
   constructor() {
     this.systemPrompt = `Eres un asistente experto de la aplicación ArbaDevPolice, un sistema de gestión policial. 
-    this.systemPrompt = `Eres un asistente experto de la aplicación ArbaDevPolice, un sistema de gestión policial. 
 Tu rol es ayudar a los usuarios a consultar información sobre:
 - Incidencias policiales (tipos: Animales, Seguridad Ciudadana, Tráfico, Ruidos, Ilícito penal, Incidencias Urbanísticas, etc.)
 - Personas registradas en el sistema (con DNI, nombres, teléfonos, direcciones)
