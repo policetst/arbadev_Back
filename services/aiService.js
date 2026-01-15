@@ -131,8 +131,28 @@ Cuando encuentres datos específicos, presenta TODOS los detalles disponibles:
     const additionalData = {};
 
     try {
-      // Buscar nombres propios en la consulta (palabras que empiezan con mayúscula)
-      const nameMatches = query.match(/\b[A-ZÑÁÉÍÓÚ][a-zñáéíóúü]+(?:\s+[A-ZÑÁÉÍÓÚ][a-zñáéíóúü]+)*/g);
+      // Buscar nombres propios en la consulta
+      // 1. Primero detectar palabras que empiezan con mayúscula
+      let nameMatches = query.match(/\b[A-ZÑÁÉÍÓÚ][a-zñáéíóúü]+(?:\s+[A-ZÑÁÉÍÓÚ][a-zñáéíóúü]+)*/g);
+      
+      // 2. También buscar después de palabras clave (busca, hablame, información)
+      if (!nameMatches || nameMatches.length === 0) {
+        const keywordPatterns = [
+          /busca(?:\s+a)?\s+([a-zñáéíóúü]+(?:\s+[a-zñáéíóúü]+)*)/i,
+          /hablame\s+de(?:\s+el)?\s+([a-zñáéíóúü]+(?:\s+[a-zñáéíóúü]+)*)/i,
+          /información\s+(?:sobre|de)\s+([a-zñáéíóúü]+(?:\s+[a-zñáéíóúü]+)*)/i,
+          /datos\s+(?:sobre|de)\s+([a-zñáéíóúü]+(?:\s+[a-zñáéíóúü]+)*)/i,
+          /(?:es|se\s+llama)\s+([a-zñáéíóúü]+(?:\s+[a-zñáéíóúü]+)*)/i
+        ];
+        
+        for (const pattern of keywordPatterns) {
+          const match = lowerQuery.match(pattern);
+          if (match && match[1]) {
+            nameMatches = [match[1]];
+            break;
+          }
+        }
+      }
       
       // Si hay nombres específicos, buscar en TODA la base de datos
       if (nameMatches && nameMatches.length > 0) {
