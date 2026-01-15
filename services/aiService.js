@@ -26,38 +26,27 @@ const groq = new Groq({
  */
 class AIService {
   constructor() {
-    this.systemPrompt = `Eres un asistente experto de la aplicación ArbaDevPolice, un sistema de gestión policial. 
-Tu rol es ayudar a los usuarios a consultar información sobre:
-- Incidencias policiales (tipos: Animales, Seguridad Ciudadana, Tráfico, Ruidos, Ilícito penal, Incidencias Urbanísticas, etc.)
-- Personas registradas en el sistema (con DNI, nombres, teléfonos, direcciones)
-- Vehículos registrados (con matrículas, marcas, modelos, colores, seguros)
-- Atestados y diligencias
-- Estadísticas y datos agregados
+    this.systemPrompt = `Eres un asistente de la aplicación ArbaDevPolice, un sistema de gestión policial. 
 
-CAPACIDADES DEL SISTEMA:
-✅ Tengo acceso completo a todas las tablas: incidents, people, vehicles, atestados, diligencias, users
-✅ Puedo buscar por nombres de personas (detectando nombres propios automáticamente)
-✅ Puedo buscar por matrículas de vehículos (formato: 1234ABC)
-✅ Puedo buscar incidencias por tipo, ubicación, fecha, descripción
-✅ Puedo mostrar incidencias relacionadas con personas o vehículos específicos
-✅ Puedo analizar patrones, tendencias y estadísticas
+INSTRUCCIONES CRÍTICAS:
+1. Responde SIEMPRE en español
+2. Cuando te proporcione datos en formato JSON, ÚSALOS DIRECTAMENTE en tu respuesta
+3. COPIA LOS DATOS EXACTOS del JSON (DNI, nombres, teléfonos, matrículas, marcas, modelos, colores)
+4. NO inventes ni modifiques ningún dato
+5. Si los datos están vacíos o no existen, di "No se encontraron resultados"
+6. Sé preciso, directo y específico con los datos proporcionados
 
-INSTRUCCIONES IMPORTANTES:
-1. Responde siempre en español
-2. Sé conciso pero completo en tus respuestas
-3. Cuando te proporcione datos del sistema, analízalos y presenta la información de forma clara
-4. NUNCA digas que "no tienes acceso" a datos - siempre tienes acceso a toda la información que te proporciono
-5. Si no hay datos disponibles para una consulta específica, di "No se encontraron resultados" o "No hay datos registrados"
-6. Puedes hacer cálculos, estadísticas y análisis sobre los datos proporcionados
-7. Formatea tus respuestas de forma legible usando markdown cuando sea apropiado
-8. Si te preguntan por datos sensibles (contraseñas, etc.), indica que esa información es confidencial bajo cualquier circunstancia
-9. No inventes datos, usa solo la información que te proporciono
+CAPACIDADES:
+✅ Acceso completo a: incidencias, personas, vehículos, atestados, diligencias
+✅ Puedo mostrar toda la información asociada a una persona o vehículo
+✅ Puedo analizar estadísticas y patrones
 
-CONTEXTO DEL SISTEMA:
-- Los estados de incidencias son: Open (Abierta) y Closed (Cerrada)
-- Los tipos de incidencias incluyen: Animales, Seguridad Ciudadana, Tráfico, Ruidos, Ilícito penal, Incidencias Urbanísticas, Otras incidencias no clasificadas
-- Los usuarios tienen roles: Administrator y Standard
-- Los atestados tienen estados: activo y cerrado`;
+FORMATO DE RESPUESTA:
+Cuando encuentres datos específicos, presenta TODOS los detalles disponibles:
+- Persona: DNI, nombre completo, teléfono, dirección
+- Vehículo: matrícula, marca, modelo, color, seguro, ITV
+- Incidencia: código, tipo, estado, ubicación, descripción, fecha
+`;
   }
 
   /**
@@ -162,6 +151,8 @@ CONTEXTO DEL SISTEMA:
         
         if (matchedPeople.rows.length > 0) {
           const dnis = matchedPeople.rows.map(p => p.dni);
+          
+          // Obtener incidencias relacionadas
           const relatedIncidents = await pool.query(`
             SELECT DISTINCT i.code, i.status, i.location, i.type, i.description, i.creation_date, ip.person_dni
             FROM incidents i
@@ -170,6 +161,15 @@ CONTEXTO DEL SISTEMA:
             ORDER BY i.creation_date DESC
           `, [dnis]);
           additionalData.incidenciasPersonas = relatedIncidents.rows;
+          
+          // Obtener vehículos asociados a estas personas
+          const relatedVehicles = await pool.query(`
+            SELECT DISTINCT v.license_plate, v.brand, v.model, v.color, v.insurance, v.inspection_date, pv.person_dni
+            FROM vehicles v
+            INNER JOIN people_vehicles pv ON v.license_plate = pv.vehicle_license_plate
+            WHERE pv.person_dni = ANY($1::text[])
+          `, [dnis]);
+          additionalData.vehiculosPersonas = relatedVehicles.rows;
         }
       } else {
         // Si no hay nombres específicos, cargar muestra representativa
@@ -201,6 +201,8 @@ CONTEXTO DEL SISTEMA:
         
         if (matchedVehicles.rows.length > 0) {
           const licensePlates = matchedVehicles.rows.map(v => v.license_plate);
+          
+          // Obtener incidencias relacionadas
           const relatedIncidents = await pool.query(`
             SELECT DISTINCT i.code, i.status, i.location, i.type, i.description, i.creation_date, iv.vehicle_license_plate
             FROM incidents i
@@ -209,6 +211,15 @@ CONTEXTO DEL SISTEMA:
             ORDER BY i.creation_date DESC
           `, [licensePlates]);
           additionalData.incidenciasVehiculos = relatedIncidents.rows;
+          
+          // Obtener propietarios de estos vehículos
+          const vehicleOwners = await pool.query(`
+            SELECT DISTINCT p.dni, p.first_name, p.last_name1, p.last_name2, p.phone_number, p.address, pv.vehicle_license_plate
+            FROM people p
+            INNER JOIN people_vehicles pv ON p.dni = pv.person_dni
+            WHERE pv.vehicle_license_plate = ANY($1::text[])
+          `, [licensePlates]);
+          additionalData.propietariosVehiculos = vehicleOwners.rows;
         }
       } 
       // Si se menciona una marca específica, buscar TODOS los vehículos de esa marca
